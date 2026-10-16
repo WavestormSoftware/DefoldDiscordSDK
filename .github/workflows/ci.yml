@@ -1,0 +1,83 @@
+name: ci
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: ['**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: build (syntax, capi, lua, docs, license)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install toolchain
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq g++ lua5.1
+          g++ --version
+
+      - name: Type-check extension sources against stub headers
+        run: bash scripts/ci/syntax.sh
+
+      - name: C API binding / vendored header consistency
+        run: bash scripts/ci/capi_check.sh
+
+      - name: Parse-check example Lua script
+        run: bash scripts/ci/lua.sh
+
+      - name: Set up Python for doc and license audits
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Documentation quality (ASCII, links, fences, game.project)
+        run: python3 scripts/ci/docs_check.py
+
+      - name: License audit (no proprietary SDK blobs)
+        run: python3 scripts/ci/license_audit.py
+
+  native-build:
+    name: Defold build server (real native extension build)
+    # Uses the verified community action dapetcu21/setup-defold (downloads
+    # bob.jar) and Defold's hosted Extender. Kept off push events so the
+    # common path stays fast and the free public build server is not loaded
+    # by every commit; trigger manually or weekly. See docs/CI.md.
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK (bob requires a recent OpenJDK)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - name: Set up Defold bob
+        uses: dapetcu21/setup-defold@v3.0.2
+        with:
+          sha1: stable
+
+      - name: Resolve dependencies
+        run: java -jar "$BOB" resolve
+
+      - name: Build extension as library artifact via the build server
+        run: |
+          set -e
+          for platform in x86_64-linux x86_64-win32 arm64-ios armv7-android; do
+            echo "== building for $platform =="
+            java -jar "$BOB" --build-server https://build.defold.com \
+              --build-artifacts library --platform "$platform" build
+          done

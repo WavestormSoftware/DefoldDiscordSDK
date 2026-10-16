@@ -1,0 +1,24 @@
+/.editor_settings
+/.internal
+/build
+.externalToolBuilders
+.DS_Store
+Thumbs.db
+.lock-wscript
+*.pyc
+.project
+.cproject
+builtins
+
+# Discord Social SDK local files (fetched via tools/fetch_discord_sdk)
+# The extracted SDK is never committed; binaries are staged locally only.
+/discord_social_sdk/
+
+# Everything under the extension res folders is fetched, not committed.
+# Directory placeholders and plain-text notes stay tracked via the
+# exceptions below, so the folder layout remains visible in git.
+defolddiscordsdk/res/**
+!defolddiscordsdk/res/**/
+!defolddiscordsdk/res/**/README.md
+!defolddiscordsdk/res/**/*.txt
+!defolddiscordsdk/res/**/.keep

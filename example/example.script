@@ -1,0 +1,595 @@
+-- Discord Social SDK example for Defold.
+-- A single game object demo that exercises the whole `discordsdk` Lua module
+-- and logs everything to the console, so an integration can be validated
+-- quickly without any GUI assets.
+--
+-- Keys (number row 1 to 6, bound in /input/game.input_binding):
+--   1  update presence   2  clear presence   3  friends
+--   4  authorize         5  lobby            6  invite friend
+--
+-- Requirements:
+--   - game.project [defolddiscordsdk] application_id should be set for
+--     logged-in features (get one at https://discord.com/developers/applications).
+--   - SDK binaries staged by tools/fetch_discord_sdk(.sh|.bat). The example
+--     still runs without them: the extension stubs every discordsdk.* call,
+--     which returns false, and this script reports that politely.
+
+-- ## 1. Module loading ---------------------------------------------------
+
+-- The extension exposes the `discordsdk` Lua module. Prefer the global, fall
+-- back to require for projects that load it per script.
+local discordsdk = rawget(_G, "discordsdk")
+if type(discordsdk) ~= "table" then
+	local module_names = { "discordsdk" }
+	for _, name in ipairs(module_names) do
+		local ok, module = pcall(require, name)
+		if ok and type(module) == "table" then
+			discordsdk = module
+			break
+		end
+	end
+end
+
+-- Distinguish "extension not in the build" from "SDK binaries not staged".
+local MODULE_MISSING = false
+if type(discordsdk) ~= "table" then
+	discordsdk = {}
+	MODULE_MISSING = true
+end
+
+-- ## 2. API resolution ---------------------------------------------------
+
+-- First function found among candidate names on the loaded module. This keeps
+-- the demo working across small naming differences of the extension surface.
+local function resolve_api(...)
+	for i = 1, select("#", ...) do
+		local name = select(i, ...)
+		local fn = discordsdk[name]
+		if type(fn) == "function" then
+			return fn
+		end
+	end
+	return nil
+end
+
+local API = {}
+local API_CANDIDATES = {
+	update_presence         = { "update_presence", "update_rich_presence", "set_presence" },
+	clear_presence          = { "clear_presence", "clear_rich_presence" },
+	authorize               = { "authorize" },
+	auth_state              = { "get_token", "is_authorized", "authorized_state" },
+	send_invite             = { "send_activity_invite", "send_invite", "activity_invite_send" },
+	get_current_user        = { "get_current_user", "get_user" },
+	get_friends             = { "get_friends", "get_relationships" },
+	create_or_join_lobby    = { "create_or_join_lobby", "create_or_join_lobby_with_secret", "lobby_create_or_join" },
+	send_lobby_message      = { "send_lobby_message", "lobby_send_message" },
+	leave_lobby             = { "leave_lobby", "lobby_leave" },
+	send_join_request_reply = { "send_join_request_reply", "send_activity_join_request_reply" },
+	available               = { "available", "is_available" },
+}
+for label, names in pairs(API_CANDIDATES) do
+	API[label] = resolve_api(unpack(names))
+end
+
+-- ## 3. Console and guard helpers ---------------------------------------
+
+local PREFIX_EVENT = "[discordsdk]"
+local PREFIX_DEMO  = "[demo]"
+
+-- Pretty-prints nested callback payloads.
+local function print_table(value, indent, depth)
+	indent = indent or "  "
+	depth = depth or 0
+	if value == nil then
+		print(indent .. "nil")
+		return
+	end
+	if depth > 4 then
+		print(indent .. "... (truncated)")
+		return
+	end
+	if type(value) ~= "table" then
+		print(indent .. tostring(value))
+		return
+	end
+	for key, item in pairs(value) do
+		local label = indent .. tostring(key) .. " = "
+		if type(item) == "table" then
+			print(label .. "{")
+			print_table(item, indent .. "    ", depth + 1)
+			print(indent .. "}")
+		else
+			print(label .. tostring(item))
+		end
+	end
+end
+
+-- Remembers the first table value found among callback arguments.
+local function first_table(...)
+	for i = 1, select("#", ...) do
+		local value = select(i, ...)
+		if type(value) == "table" then
+			return value
+		end
+	end
+	return nil
+end
+
+-- Guarded call wrapper.
+-- The `discordsdk` module always exposes its functions: when the native binaries
+-- are missing the call runs as a no-op stub that returns false. Both that and
+-- a fully missing module fall back to a clear console hint instead of a crash.
+-- (The "if not discordsdk.available()" idea is handled implicitly: when present,
+-- available() is consulted at boot; every real call is checked by result.)
+local function call(label, run)
+	if MODULE_MISSING or type(run) ~= "function" then
+		print(PREFIX_DEMO .. " '" .. label .. "' skipped: no such function in the discordsdk module.")
+		print(PREFIX_DEMO .. " is the defolddiscordsdk extension part of this build?")
+		return false
+	end
+	local ok, result = pcall(run)
+	if not ok then
+		print(PREFIX_DEMO .. " '" .. label .. "' raised an error: " .. tostring(result))
+		return false
+	end
+	if result == false then
+		print(PREFIX_DEMO .. " '" .. label .. "' not available - skipped (see tools/fetch_discord_sdk).")
+		return false
+	end
+	return result
+end
+
+-- ## 4. Demo state and event handlers -----------------------------------
+
+-- Shared across script instances; fine for a single game object demo.
+local STATE = {
+	self_id = nil,      -- own user id once known
+	friend_id = nil,    -- first friend id harvested from callbacks or key 3
+	lobby_id = nil,     -- current demo lobby id (key 5 toggles join/leave)
+	authorized = false,
+}
+
+-- Extracts a user id from heterogeneous payloads: either the user directly
+-- ({ id = ... }) or wrapped ({ user = { id = ... } }).
+local function remember_user_id(slot, payload)
+	local user = payload
+	if type(user) ~= "table" then
+		return
+	end
+	if type(user.user) == "table" then
+		user = user.user
+	end
+	local id = user.id
+	if id ~= nil and (type(id) == "number" or (type(id) == "string" and id ~= "")) then
+		if STATE[slot] == nil then
+			STATE[slot] = id
+			print(PREFIX_DEMO .. " remembered " .. slot .. " = " .. tostring(id))
+		end
+	end
+end
+
+-- Extracts a lobby id: either the id itself or a payload table carrying it.
+local function remember_lobby_id(payload)
+	local id = nil
+	if type(payload) == "number" then
+		id = payload
+	elseif type(payload) == "string" and payload ~= "" then
+		id = payload
+	elseif type(payload) == "table" then
+		id = payload.lobby_id or payload.id
+	end
+	if id ~= nil then
+		STATE.lobby_id = id
+		print(PREFIX_DEMO .. " demo lobby id: " .. tostring(id))
+	end
+end
+
+-- Generic event handler for callbacks that only need to be logged.
+local function on_event(name)
+	return function(...)
+		local n = select("#", ...)
+		print(PREFIX_EVENT .. " " .. name .. " (" .. n .. " values)")
+		for i = 1, n do
+			local value = select(i, ...)
+			if type(value) == "table" then
+				print_table(value, "  ")
+			else
+				print("  " .. tostring(value))
+			end
+		end
+	end
+end
+
+local CALLBACKS = {
+	ready = function(...)
+		print(PREFIX_EVENT .. " ready - SDK connected, callbacks can expect payloads")
+		remember_user_id("self_id", first_table(...))
+		on_event("ready")(...)
+	end,
+	status_changed = on_event("status_changed"),
+	error = function(...)
+		print(PREFIX_EVENT .. " error")
+		on_event("error")(...)
+		print(PREFIX_EVENT .. " hint: detailed failure reasons often arrive via presence_result or this callback")
+	end,
+	authorized = function(...)
+		STATE.authorized = true
+		on_event("authorized")(...)
+	end,
+	activity_invite_created = on_event("activity_invite_created"),
+	activity_join = function(...)
+		on_event("activity_join")(...)
+		print(PREFIX_EVENT .. " hint: pass the received secret to create_or_join_lobby to teleport the user's party")
+	end,
+	activity_join_request = function(...)
+		on_event("activity_join_request")(...)
+		print(PREFIX_EVENT .. " replying to the join request via send_join_request_reply")
+		local invite = first_table(...)
+		local ok_response = call("send_join_request_reply", function()
+			return API.send_join_request_reply(invite)
+		end)
+		if ok_response ~= false then
+			print(PREFIX_EVENT .. " join request replied (check Discord for the result)")
+		end
+	end,
+	lobby_created = function(...)
+		on_event("lobby_created")(...)
+		remember_lobby_id(first_table(...))
+	end,
+	lobby_updated = function(...)
+		on_event("lobby_updated")(...)
+		remember_lobby_id(first_table(...))
+	end,
+	lobby_deleted = function(...)
+		on_event("lobby_deleted")(...)
+		STATE.lobby_id = nil
+	end,
+	lobby_member_added = on_event("lobby_member_added"),
+	lobby_member_removed = on_event("lobby_member_removed"),
+	lobby_member_updated = on_event("lobby_member_updated"),
+	message_created = on_event("message_created"),
+	relationship_created = function(...)
+		on_event("relationship_created")(...)
+		local relationship = first_table(...)
+		-- RelationshipType.Friend = 1; other kinds are tracked but not used
+		-- as invite targets by this demo.
+		if type(relationship) == "table" and relationship.type ~= nil and relationship.type ~= 1 then
+			print(PREFIX_EVENT .. " not a friend relationship, ignoring as invite target")
+			return
+		end
+		remember_user_id("friend_id", relationship)
+	end,
+	relationship_deleted = on_event("relationship_deleted"),
+	presence_result = on_event("presence_result"),
+	user_updated = on_event("user_updated"),
+	token_expired = function(...)
+		STATE.authorized = false
+		on_event("token_expired")(...)
+	end,
+	voice_participant_changed = on_event("voice_participant_changed"),
+}
+
+-- ## 5. Demo flows --------------------------------------------------------
+
+local DEMO_LOBBY_SECRET = "defold-demo-lobby"
+local DEMO_MESSAGE      = "hello from defold"
+
+-- Typical e-sports style rich presence for a fictional title.
+local function build_presence()
+	local now_ms    = os.time() * 1000
+	local party_id  = "defold-demo-party-" .. now_ms
+	local join_secret = "defold-demo-join-" .. now_ms
+	return {
+		type = 0, -- ActivityTypes.Playing
+		name = "Rocket Arena",
+		state = "Ranked Series 7 - Grand Final",
+		details = "Espionage vs Phoenix | Map 2 - Ember City",
+		status_display_type = 2, -- StatusDisplayTypes.Details
+		timestamps = {
+			start = now_ms,                    -- match started just now
+			["end"] = now_ms + 15 * 60 * 1000, -- series wraps up in 15 minutes
+		},
+		assets = {
+			large_image = "esports-banner",
+			large_text = "Grand Finals - Ember City",
+			small_image = "team-espionage",
+			small_text = "Espionage",
+		},
+		party = {
+			id = party_id, -- non-empty party id is required for invites/join requests
+			size = 1,
+			max = 4,
+			privacy = 1,    -- ActivityPartyPrivacy.Public
+		},
+		secrets = {
+			join = join_secret,
+			-- NOTE: the shipped Social SDK build exposes a join secret only;
+			-- there is no spectate field in these binaries. If the Lua layer
+			-- supports one, wire it up here and keep the doc updated.
+			-- spectate = "defold-demo-spectate",
+		},
+		buttons = {
+			{ label = "Open match page",   url = "https://defold.com" },
+			{ label = "Community Discord", url = "https://discord.com/developers/docs" },
+		},
+	}
+end
+
+local function demo_presence()
+	print(PREFIX_DEMO .. " key 1 - update presence (e-sports style demo match)")
+	local payload = build_presence()
+	print(PREFIX_DEMO .. " presence payload:")
+	print_table(payload, "  ")
+	print(PREFIX_DEMO .. " expected in Discord: game name, state, details, two buttons, party 1/4")
+	call("update_presence", function()
+		return API.update_presence(payload)
+	end)
+end
+
+local function demo_clear_presence()
+	print(PREFIX_DEMO .. " key 2 - clear presence")
+	call("clear_presence", function()
+		return API.clear_presence()
+	end)
+end
+
+local function demo_friends()
+	print(PREFIX_DEMO .. " key 3 - friends overview")
+
+	call("get_current_user", function()
+		local user = API.get_current_user()
+		if type(user) == "table" then
+			print(PREFIX_DEMO .. " current user:")
+			print_table(user, "  ")
+			remember_user_id("self_id", user)
+		elseif user ~= nil then
+			print(PREFIX_DEMO .. " current user: " .. tostring(user))
+		else
+			print(PREFIX_DEMO .. " current user not returned synchronously; arrive via ready/user_updated callbacks")
+		end
+		return user
+	end)
+
+	call("get_friends", function()
+		local friends = API.get_friends()
+		if type(friends) ~= "table" then
+			print(PREFIX_DEMO .. " friends: " .. tostring(friends) .. " (or via relationship callbacks)")
+			return friends
+		end
+
+		local list = friends.list or friends.relationships or friends
+		local count = tonumber(friends.count)
+		if count == nil and type(list) == "table" then
+			count = #list
+		end
+		print(PREFIX_DEMO .. " friend count: " .. tostring(count))
+
+		local first = nil
+		if type(list) == "table" then
+			first = list[1]
+		end
+		if type(first) == "table" then
+			print(PREFIX_DEMO .. " first friend:")
+			print_table(first, "  ")
+			remember_user_id("friend_id", first)
+		elseif (count or 0) > 0 then
+			print(PREFIX_DEMO .. " friend entries are keyed by id; raw table follows")
+			print_table(friends, "  ")
+		else
+			print(PREFIX_DEMO .. " no friends visible; log a Discord friend into the client to change that")
+		end
+		return friends
+	end)
+end
+
+local function demo_auth()
+	print(PREFIX_DEMO .. " key 4 - authorization")
+
+	-- Ask for the current token state when the extension exposes a getter.
+	local state = nil
+	if not MODULE_MISSING and type(API.auth_state) == "function" then
+		local ok, value = pcall(API.auth_state)
+		if ok then
+			state = value
+		end
+	end
+	if type(state) == "table" then
+		print(PREFIX_DEMO .. " token state:")
+		print_table(state, "  ")
+		STATE.authorized = (state.authorized == true) or (state.Authorized == true)
+	elseif type(state) == "boolean" then
+		print(PREFIX_DEMO .. " token state: " .. tostring(state))
+		STATE.authorized = state
+	elseif state ~= nil then
+		print(PREFIX_DEMO .. " token state: " .. tostring(state))
+	end
+
+	-- Only skip authorize() when we positively know we are authenticated.
+	local known_authorized =
+		(type(state) == "table" and STATE.authorized) or
+		(type(state) == "boolean" and state == true) or
+		(type(state) == "nil" and STATE.authorized)
+	if known_authorized then
+		print(PREFIX_DEMO .. " already authenticated - nothing more to do (state above)")
+		return
+	end
+
+	print(PREFIX_DEMO .. " not authenticated - calling discordsdk.authorize()")
+	print(PREFIX_DEMO .. " watch the Discord client or the browser consent window that appears")
+	call("authorize", function()
+		return API.authorize()
+	end)
+end
+
+local function on_lobby_result(result, lobby_id)
+	if result ~= nil then
+		print(PREFIX_DEMO .. " lobby result:")
+		if type(result) == "table" then
+			print_table(result, "  ")
+		else
+			print("  " .. tostring(result))
+		end
+	end
+	if lobby_id == nil then
+		return
+	end
+	STATE.lobby_id = lobby_id
+	print(PREFIX_DEMO .. " demo lobby ready - id: " .. tostring(lobby_id))
+	print(PREFIX_DEMO .. " sending lobby message: '" .. DEMO_MESSAGE .. "'")
+	call("send_lobby_message", function()
+		return API.send_lobby_message(lobby_id, DEMO_MESSAGE)
+	end)
+end
+
+local function demo_lobby()
+	print(PREFIX_DEMO .. " key 5 - lobby demo")
+	if STATE.lobby_id ~= nil then
+		local id = STATE.lobby_id
+		STATE.lobby_id = nil
+		print(PREFIX_DEMO .. " leaving demo lobby " .. tostring(id) .. " (press 5 again to create or join)")
+		call("leave_lobby", function()
+			return API.leave_lobby(id)
+		end)
+		return
+	end
+
+	print(PREFIX_DEMO .. " creating or joining a lobby with fixed secret '" .. DEMO_LOBBY_SECRET .. "'")
+	print(PREFIX_DEMO .. " pressing 5 again leaves the lobby")
+	local joined = call("create_or_join_lobby", function()
+		return API.create_or_join_lobby(DEMO_LOBBY_SECRET, on_lobby_result)
+	end)
+	-- Some shapes return the lobby id directly instead of using the callback.
+	if type(joined) == "number" then
+		on_lobby_result(nil, joined)
+	elseif type(joined) == "table" and joined.lobby_id ~= nil then
+		on_lobby_result(joined.result, joined.lobby_id)
+	end
+end
+
+local function demo_invite()
+	print(PREFIX_DEMO .. " key 6 - send activity invite")
+	local target = STATE.friend_id or STATE.self_id
+	if target == nil then
+		print(PREFIX_DEMO .. " no invite target yet:")
+		print(PREFIX_DEMO .. "  - press 3 once (friends overview, remembers the first friend id), or")
+		print(PREFIX_DEMO .. "  - wait for the ready/relationship callbacks to record an id")
+		return
+	end
+	local label = "first friend"
+	if STATE.friend_id == nil then
+		label = "own user id (no friend known yet)"
+	end
+	print(PREFIX_DEMO .. " sending invite to " .. label .. " (id " .. tostring(target) .. ")")
+	call("send_invite", function()
+		return API.send_invite(target, "Join my Defold demo - Rocket Arena grand final!")
+	end)
+end
+
+-- ## 6. Key mapping ------------------------------------------------------
+
+-- Actions "key_p" .. "key_i" are bound to keyboard keys 1..6 in the input
+-- binding file (/input/game.input_binding). If a trigger is missing there the
+-- related action simply never fires - nothing crashes; the boot log lists
+-- what each key would have done.
+local DEMO_KEYS = {
+	key_p = { index = 1, label = "update presence (e-sports demo)", run = demo_presence },
+	key_c = { index = 2, label = "clear presence",                  run = demo_clear_presence },
+	key_f = { index = 3, label = "friends overview",                run = demo_friends },
+	key_a = { index = 4, label = "authorize",                       run = demo_auth },
+	key_l = { index = 5, label = "lobby create/join or leave",      run = demo_lobby },
+	key_i = { index = 6, label = "send activity invite",            run = demo_invite },
+}
+local KEY_ORDER = {}
+local BY_INPUT_ID = {}
+for action_name, entry in pairs(DEMO_KEYS) do
+	entry.action = action_name
+	KEY_ORDER[entry.index] = entry
+	BY_INPUT_ID[hash(action_name)] = entry
+end
+
+-- ## 7. Lifecycle --------------------------------------------------------
+
+function init(self)
+	print("=====================================================")
+	print("Discord Social SDK demo - watch this console")
+	print("=====================================================")
+
+	print("Demo keys (number row, see /input/game.input_binding):")
+	for i = 1, #KEY_ORDER do
+		local entry = KEY_ORDER[i]
+		print(string.format("  %d. keyboard key %d -> action '%s': %s",
+			entry.index, entry.index, entry.action, entry.label))
+	end
+	print("If pressing a number does nothing, its key_trigger is missing")
+	print("from /input/game.input_binding - the demo stays alive either way.")
+
+	if MODULE_MISSING then
+		print("[discordsdk] module MISSING: add the defolddiscordsdk extension to this build.")
+	else
+		print("[discordsdk] module loaded.")
+		if type(API.available) == "function" then
+			local available = call("available", function()
+				return API.available()
+			end)
+			if available == false then
+				print("[discordsdk] SDK binaries are not staged; calls will no-op.")
+				print("[discordsdk] run tools/fetch_discord_sdk.sh (or .bat) to stage them.")
+			end
+		end
+	end
+
+	local app_id = sys.get_config("defolddiscordsdk.application_id")
+	if app_id == nil or app_id == "" then
+		print("[discordsdk] game.project [defolddiscordsdk] application_id is not set.")
+		print("[discordsdk] get an id at https://discord.com/developers/applications.")
+	else
+		print("[discordsdk] application_id = " .. app_id)
+	end
+
+	local parameters = {
+		application_id = app_id,
+		callbacks = {},
+	}
+	local callback_count = 0
+	for name, handler in pairs(CALLBACKS) do
+		parameters.callbacks[name] = handler
+		callback_count = callback_count + 1
+	end
+	print("[discordsdk] registering " .. callback_count .. " event callbacks")
+	call("initialize", function()
+		return discordsdk.initialize(parameters)
+	end)
+	print("init complete - press 1 to 6, or wait for [discordsdk] events")
+end
+
+function final(self)
+	print("shutting down demo: leaving lobby and clearing presence")
+	if STATE.lobby_id ~= nil then
+		call("leave_lobby", function()
+			return API.leave_lobby(STATE.lobby_id)
+		end)
+	end
+	call("clear_presence", function()
+		return API.clear_presence()
+	end)
+end
+
+function on_input(self, action_id, action)
+	if action_id == nil then
+		return -- action not bound in game.input_binding; nothing to do
+	end
+	if action == nil or not action.pressed then
+		return -- ignore key repeats and releases
+	end
+	local entry = BY_INPUT_ID[action_id]
+	if entry == nil then
+		return -- unrelated action; ignore silently
+	end
+	print("")
+	print(PREFIX_DEMO .. " key " .. tostring(entry.index) .. " pressed - " .. entry.label)
+	entry.run()
+end
+
+function on_reload(self)
+	print("discordsdk example script reloaded; state table kept")
+end
