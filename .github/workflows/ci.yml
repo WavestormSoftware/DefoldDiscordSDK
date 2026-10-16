@@ -73,12 +73,23 @@ jobs:
       - name: Resolve dependencies
         run: java -jar "$BOB" resolve
 
+      - name: Stage extension sources for the build server
+        # Bob's --ne-build-dir walks the given folder verbatim; it must not
+        # contain ext.manifest (Bob synthesizes an upload-side one, and a
+        # second copy aborts the job with "Duplicate file in upload zip").
+        run: |
+          rm -rf build/ne-upload
+          mkdir -p build/ne-upload
+          cp -r defolddiscordsdk/src build/ne-upload/src
+          cp -r defolddiscordsdk/include build/ne-upload/include
+
       - name: Build extension as library artifact via the build server
         run: |
           set -e
           for platform in x86_64-linux x86_64-win32 arm64-ios armv7-android; do
             echo "== building for $platform =="
             java -jar "$BOB" --build-server https://build.defold.com \
+              --ne-build-dir build/ne-upload \
               --build-artifacts library --platform "$platform" build
           done
 
