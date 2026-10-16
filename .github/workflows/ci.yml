@@ -60,7 +60,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up JDK (bob requires a recent OpenJDK)
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '25'
@@ -81,3 +81,11 @@ jobs:
             java -jar "$BOB" --build-server https://build.defold.com \
               --build-artifacts library --platform "$platform" build
           done
+
+      - name: Upload build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-build-logs
+          path: build/**/log.txt
+          retention-days: 14
