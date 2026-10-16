@@ -15,15 +15,9 @@ title = DefoldDiscordSDK
 include_dirs = defolddiscordsdk
 
 [defolddiscordsdk]
-# Discord application id from https://discord.com/developers/applications (required for most features)
 application_id =
-# Optional override pointing at a folder that holds the Discord Social SDK binaries (empty = extension default)
 lib_path =
-# Optional Steam app id used for Steam based identity linking (empty = disabled)
 steam_app_id =
-# Optional redirect URL for the browser based authorization flow (empty = platform default)
 default_redirect =
-# Optional space separated scope list requested during authorization
 scopes = presence
-# 1 asks the extension to register game launches with Discord so invites and joinable parties work
 auto_register_launch = 1
