@@ -51,20 +51,35 @@ The `native-build` workflow job performs a genuine build through Defold's
 hosted native-extension build service (Extender) using the
 `dapetcu21/setup-defold@v3.0.2` action, which downloads `bob.jar`
 (verified: the action exists on the GitHub Marketplace). It compiles the
-extension as a library artifact for several platforms:
+extension as a library artifact for x86_64-linux, x86_64-win32, arm64-ios
+and armv7-android.
+
+Bob uploads only the folders listed via `--ne-build-dir` as extension
+source for `--build-artifacts=library` jobs, and it synthesizes an
+upload-side `ext.manifest` itself. Pointing `--ne-build-dir` straight at
+`defolddiscordsdk/` aborts with "Duplicate file in upload zip: ext.manifest"
+because the walk would add our real manifest as a second copy. The job
+therefore stages a manifest-free copy of the sources first. The invocation
+is roughly:
 
 ```
+rm -rf build/ne-upload
+mkdir -p build/ne-upload
+cp -r defolddiscordsdk/src build/ne-upload/src
+cp -r defolddiscordsdk/include build/ne-upload/include
+
 java -jar "$BOB" resolve
 java -jar "$BOB" --build-server https://build.defold.com \
+    --ne-build-dir build/ne-upload \
     --build-artifacts library --platform <platform> build
 ```
 
-This job is triggered by `workflow_dispatch` and a weekly schedule, not on
-every push, to keep per-push runtime small and to be a polite citizen of the
-free public build server (the Defold docs allow unrestricted use, so if you
-want push coverage, add `push:`/`pull_request:` to the job's trigger list).
-If you prefer bob to default to stable automatically, you can drop
-`--build-server` (stable channel bob defaults to `https://build.defold.com`).
+All four platforms are verified to produce `libdefault.a` this way. Build
+logs are uploaded as artifacts on failure for debugging.
 
-For fully self-hosted coverage, run a local Extender server per
-https://defold.com/manuals/extender-local-setup/ and pass its URL instead.
+The job is triggered by `workflow_dispatch` and a weekly schedule, not on
+every push, to keep per-push runtime small and to be a polite citizen of the
+free public build server; Defold allows unrestricted use, so widening the
+trigger is a one-line change. For self-hosted coverage, run a local Extender
+server (see the "Setup local build server" manual at defold.com) and pass
+its URL via `--build-server`.
