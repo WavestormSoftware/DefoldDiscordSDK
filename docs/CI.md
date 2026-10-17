@@ -106,6 +106,6 @@ the build server (the compile verification stays in the `ci.yml`
 
 Consumers can therefore depend on a release through GitHub's tag archive
 URL (for example
-`https://github.com/WavestormSoftware/DefoldDiscordSDK/archive/refs/tags/1.0.0.zip`)
+`https://github.com/WavestormSoftware/DefoldDiscordSDK/archive/refs/tags/v1.0.0.zip`)
 or the equivalent release asset, which is what Defold's project dependency
 setting consumes.

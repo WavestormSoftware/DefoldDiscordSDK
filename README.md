@@ -53,7 +53,7 @@ See [wiki/Platform-Support.md](wiki/Platform-Support.md) for details.
 
    ```project
    [project]
-   dependencies = https://github.com/WavestormSoftware/DefoldDiscordSDK/archive/refs/tags/1.0.0.zip
+   dependencies = https://github.com/WavestormSoftware/DefoldDiscordSDK/archive/refs/tags/v1.0.0.zip
    ```
 
    See the [Releases](#releases) section below for all URL forms. Alternatively, copy the `defolddiscordsdk/` folder into your project, or add the bare repository URL (`https://github.com/WavestormSoftware/DefoldDiscordSDK`) in the editor under Project, then Dependencies.
@@ -155,7 +155,7 @@ The exact Lua surface, every constant, and every event payload is documented in 
 
 ## Releases
 
-Every tag pushed to this repository in the form `1.0.0` or `v1.0.0` triggers the release workflow, which runs automatically and creates the GitHub release for you:
+Every tag pushed to this repository in the form `1.0.0` or `v1.0.0` triggers the release workflow, which runs automatically and creates the GitHub release for you. This repository's released tags use the `v` prefix (`v1.0.0`), and every dependency URL below must spell the tag exactly as it appears in the tag list:
 
 1. All quality gates run: Lua parsing, C API consistency against the vendored header, documentation checks, and the license audit.
 2. A GitHub release is published with:
@@ -166,20 +166,20 @@ Every tag pushed to this repository in the form `1.0.0` or `v1.0.0` triggers the
 The zip is pure source: Defold compiles the extension itself through its cloud build service whenever your project builds, so no precompiled engine libraries ship here. To cut a release, commit your changes, tag, and push; everything else is automatic:
 
 ```bash
-git tag 1.0.1
-git push origin 1.0.1
+git tag v1.0.1
+git push origin v1.0.1
 ```
 
-The version must have a matching `## [1.0.1]` section in `CHANGELOG.md` before tagging, or the workflow stops before publishing.
+The tag may carry a `v` prefix (`v1.0.1`) or not (`1.0.1`), but before tagging the version must have a matching `## [1.0.1]` section in `CHANGELOG.md` (section headings always use the bare version), or the workflow stops before publishing.
 
-Defold accepts the versioned tag archive URL as a project dependency. Reference per-version tags so your build stays reproducible; form shown for tag `1.0.0`:
+Defold accepts the versioned tag archive URL as a project dependency. Reference per-version tags so your build stays reproducible; form shown for tag `v1.0.0`:
 
 ```project
 [project]
-dependencies = https://github.com/WavestormSoftware/DefoldDiscordSDK/archive/refs/tags/1.0.0.zip
+dependencies = https://github.com/WavestormSoftware/DefoldDiscordSDK/archive/refs/tags/v1.0.0.zip
 ```
 
-The equivalent release asset is `https://github.com/WavestormSoftware/DefoldDiscordSDK/releases/download/1.0.0/DefoldDiscordSDK-1.0.0.zip` (same content, pinned likewise). Bump the tag in the URL whenever you adopt a newer release. The zip contains `game.project` and `defolddiscordsdk/`, which is the layout Defold's library loader expects. The Discord Social SDK binaries are deliberately not packaged in it; fetch them separately as described below.
+The equivalent release asset is `https://github.com/WavestormSoftware/DefoldDiscordSDK/releases/download/v1.0.0/DefoldDiscordSDK-1.0.0.zip` (same content, pinned likewise). Bump the tag in the URL whenever you adopt a newer release. The zip contains `game.project` and `defolddiscordsdk/`, which is the layout Defold's library loader expects. The Discord Social SDK binaries are deliberately not packaged in it; fetch them separately as described below.
 
 ## Installing the SDK binaries
 

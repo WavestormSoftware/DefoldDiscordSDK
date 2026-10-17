@@ -17,10 +17,10 @@ There are two ways.
 
 ```project
 [project]
-dependencies = https://github.com/WavestormSoftware/DefoldDiscordSDK/archive/refs/tags/1.0.0.zip
+dependencies = https://github.com/WavestormSoftware/DefoldDiscordSDK/archive/refs/tags/v1.0.0.zip
 ```
 
-The tag archive URL (above) and the release asset URL `https://github.com/WavestormSoftware/DefoldDiscordSDK/releases/download/1.0.0/DefoldDiscordSDK-1.0.0.zip` are built automatically by the release workflow, contain the tag's tracked source code (`game.project` plus the `defolddiscordsdk` extension folder), and are pinned to that exact version. Always point at a specific tagged version so your build stays reproducible; when you adopt a newer release, bump the tag in the URL. Defold compiles the extension sources through its cloud build service, so the zip needs no precompiled content. A bare repository URL like `https://github.com/WavestormSoftware/DefoldDiscordSDK` also works but tracks the default branch instead of a released version.
+The tag archive URL (above) and the release asset URL `https://github.com/WavestormSoftware/DefoldDiscordSDK/releases/download/v1.0.0/DefoldDiscordSDK-1.0.0.zip` are built automatically by the release workflow, contain the tag's tracked source code (`game.project` plus the `defolddiscordsdk` extension folder), and are pinned to that exact version. Spelling matters: the tag segment in either URL must match the pushed tag name exactly, including the leading `v`. Always point at a specific tagged version so your build stays reproducible; when you adopt a newer release, bump the tag in the URL. Defold compiles the extension sources through its cloud build service, so the zip needs no precompiled content. A bare repository URL like `https://github.com/WavestormSoftware/DefoldDiscordSDK` also works but tracks the default branch instead of a released version.
 
 **Local copy.** Copy the `defolddiscordsdk` extension folder into your project. This is the right choice when you want to modify the extension, and it also lets you stage the SDK binaries inside `res/` without any extra plumbing (see [Installation.md](Installation.md)). Adding a dependency means Defold's build service compiles it; since the extension binds Discord's C ABI and loads the library at run time, no SDK headers are needed for that build.
 
