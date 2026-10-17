@@ -1,4 +1,4 @@
-// Copyright 2023-2026
+// Copyright (c) 2026 Wavestorm Software
 // DefoldDiscordSDK Defold extension
 //
 // Owner of the single Discord_Client instance.

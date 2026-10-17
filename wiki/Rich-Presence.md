@@ -86,7 +86,7 @@ The extension rate limits presence for you: at most five updates per twenty seco
 | `secrets.join`, `secrets.spectate` | Opaque tokens; invite acceptance and the join button hand them to your game through `activity_join` and `get_launch_args()`. Round-trip them from your session manager; never hardcode. |
 | `buttons` | Up to two buttons, each `{ label, url }`. Buttons are only visible to other users, never to the owner of the presence. Labels should be action phrased. |
 | `status_display_type` | `discordsdk.DISPLAY_NAME` shows the game name as the user's status text, `discordsdk.DISPLAY_STATE` shows `state`, `discordsdk.DISPLAY_DETAILS` shows `details`. Default is name. |
-| `supported_platforms` | Bitmask of `discordsdk.PLATFORM_*`. Controls where Discord offers the join button. Presence routing is per client platform: desktop joins require the desktop flag on the viewer and in the target presence, and the mobile flags route Android and iOS deep links. |
+| `supported_platforms` | Bitmask of `discordsdk.PLATFORM_*`. Controls where Discord offers the join button: the desktop flags (`PLATFORM_DESKTOP` and the `PLATFORM_WINDOWS`/`PLATFORM_MACOS`/`PLATFORM_LINUX` aliases, which the SDK collapses onto one desktop bit) require the desktop flag on the viewer and in the target presence, and `PLATFORM_ANDROID`/`PLATFORM_IOS` route the mobile deep links. |
 | `instance` | Legacy flag marking the session as one instance of the game. Keep `true` for standard sessions. |
 
 ## Assets in the portal

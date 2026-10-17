@@ -1,4 +1,4 @@
-// Copyright 2023-2026
+// Copyright (c) 2026 Wavestorm Software
 // DefoldDiscordSDK Defold extension
 //
 // Small platform-neutral helpers shared by the DefoldDiscordSDK extension

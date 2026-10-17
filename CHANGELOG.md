@@ -3,6 +3,24 @@
 All notable changes to DefoldDiscordSDK are documented here. The format is
 based on Keep a Changelog and the project uses semantic versioning.
 
+## [1.0.2] - 2026-10-17
+
+### Changed
+
+- Repository review pass. Removed dead token plumbing from the launch
+  argument parser, corrected comment drift (loader symbol-visibility wording,
+  callback data comment, event payload contract), and made the first
+  stub-mode warning name the call that triggered it.
+- The application finalize step now releases the Discord Social SDK library
+  handle; per-script reloads still keep the loaded library, unchanged.
+- The wiki's `supported_platforms` wording now says plainly that the SDK has
+  no per-OS desktop flags: `PLATFORM_WINDOWS`, `PLATFORM_MACOS` and
+  `PLATFORM_LINUX` are aliases of the single desktop bit.
+- The README credits Discord's Social SDK and the Defold Foundation, and the
+  vendored header attribution is unchanged (Discord's own licensing).
+- LICENSE.md and all source file headers now name Wavestorm Software as the
+  copyright holder.
+
 ## [1.0.1] - 2026-10-17
 
 ### Fixed
@@ -61,5 +79,6 @@ Initial public release.
 - MIT-licensed extension code; the Discord Social SDK itself remains under
   Discord's own license terms and is fetched separately.
 
+[1.0.2]: https://github.com/WavestormSoftware/DefoldDiscordSDK/releases/tag/v1.0.2
 [1.0.1]: https://github.com/WavestormSoftware/DefoldDiscordSDK/releases/tag/v1.0.1
 [1.0.0]: https://github.com/WavestormSoftware/DefoldDiscordSDK/releases/tag/v1.0.0

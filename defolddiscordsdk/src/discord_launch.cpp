@@ -1,4 +1,4 @@
-// Copyright 2023-2026
+// Copyright (c) 2026 Wavestorm Software
 // DefoldDiscordSDK Defold extension
 //
 // See discord_launch.h for the contract.
@@ -41,13 +41,11 @@ const char* kSpectateTokens[] = {
     "--discord-spectate-secret",
 };
 
-bool MatchToken(const char* const* list, size_t list_count, const std::string& token_lower,
-                size_t* matched_len)
+bool MatchToken(const char* const* list, size_t list_count, const std::string& token_lower)
 {
     for (size_t i = 0; i < list_count; ++i) {
         const std::string candidate = discordsdk::ToLower(std::string(list[i]));
         if (token_lower.compare(0, candidate.size(), candidate) == 0) {
-            *matched_len = candidate.size();
             return true;
         }
     }
@@ -76,10 +74,9 @@ void ParseArguments(const std::vector<std::string>& arguments, LaunchArgs* out)
         }
 
         const std::string key_lower = discordsdk::ToLower(key);
-        size_t matched_len = 0;
 
         uint64_t app_id = 0;
-        if (MatchToken(kAppIdTokens, sizeof(kAppIdTokens) / sizeof(kAppIdTokens[0]), key_lower, &matched_len)) {
+        if (MatchToken(kAppIdTokens, sizeof(kAppIdTokens) / sizeof(kAppIdTokens[0]), key_lower)) {
             std::string candidate = value;
             bool have_value = inline_value;
             if (!have_value && i + 1 < arguments.size()) {
@@ -93,7 +90,7 @@ void ParseArguments(const std::vector<std::string>& arguments, LaunchArgs* out)
                     ++i; // consume the trailing value token
                 }
             }
-        } else if (MatchToken(kJoinTokens, sizeof(kJoinTokens) / sizeof(kJoinTokens[0]), key_lower, &matched_len)) {
+        } else if (MatchToken(kJoinTokens, sizeof(kJoinTokens) / sizeof(kJoinTokens[0]), key_lower)) {
             std::string candidate = value;
             bool have_value = inline_value;
             if (!have_value && i + 1 < arguments.size()) {
@@ -107,8 +104,7 @@ void ParseArguments(const std::vector<std::string>& arguments, LaunchArgs* out)
                     ++i;
                 }
             }
-        } else if (MatchToken(kSpectateTokens, sizeof(kSpectateTokens) / sizeof(kSpectateTokens[0]), key_lower,
-                              &matched_len)) {
+        } else if (MatchToken(kSpectateTokens, sizeof(kSpectateTokens) / sizeof(kSpectateTokens[0]), key_lower)) {
             std::string candidate = value;
             bool have_value = inline_value;
             if (!have_value && i + 1 < arguments.size()) {

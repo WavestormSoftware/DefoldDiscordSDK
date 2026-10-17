@@ -1,9 +1,5 @@
 # DefoldDiscordSDK
 
-<p align="center">
-  <img src="assets/logo.png" width="180" alt="DefoldDiscordSDK logo">
-</p>
-
 ![DefoldDiscordSDK - the modern Discord Social SDK for Defold](assets/banner.png)
 
 [![platform](https://img.shields.io/badge/platform-windows%20%7C%20macos%20%7C%20linux-blue)](wiki/Platform-Support.md)
@@ -229,6 +225,12 @@ In the editor, set it in the **Defold Discord SDK** category of the `game.projec
 - **Lobby operations suddenly fail.** Development-mode rate limits: one hundred lobby creations and messages per application per two hours. See [wiki/Lobbies.md](wiki/Lobbies.md).
 
 Full table in [wiki/Troubleshooting.md](wiki/Troubleshooting.md).
+
+## Acknowledgements
+
+- **Discord** for the Social SDK and its clear documentation. Rich presence, account linking, friends, invites, lobbies and lobby voice all ride on the official [Discord Social SDK](https://discord.com/developers/docs/social-sdk/overview). The SDK binaries remain Discord's proprietary software, obtained per app through the Developer Portal.
+- The **Defold Foundation** for the [Defold game engine](https://defold.com) and its extension build service, which compiles this extension on every project build.
+- [dapetcu21/setup-defold](https://github.com/dapetcu21/setup-defold), used in this repository's CI to fetch bob.
 
 ## License
 

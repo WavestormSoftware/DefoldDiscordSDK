@@ -1,4 +1,4 @@
-// Copyright 2023-2026
+// Copyright (c) 2026 Wavestorm Software
 // DefoldDiscordSDK Defold extension
 //
 // Implementation of the typed function pointer table. The static_assert block

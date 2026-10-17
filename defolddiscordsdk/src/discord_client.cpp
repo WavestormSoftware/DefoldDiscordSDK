@@ -1,4 +1,4 @@
-// Copyright 2023-2026
+// Copyright (c) 2026 Wavestorm Software
 // DefoldDiscordSDK Defold extension
 //
 // See discord_client.h for the contract. Everything here assumes the
@@ -2471,7 +2471,7 @@ bool GetCurrentUserSnap(UserSnap* out)
 
 void DiscordSocialClient_FreeCallbackData(void* data)
 {
-    // All screen of callback contexts in this extension are trivially
+    // All kinds of callback contexts in this extension are trivially
     // destructible and allocated with plain new, so the global operator
     // delete is the single release point.
     if (data != 0) {

@@ -1,4 +1,4 @@
-// Copyright 2023-2026
+// Copyright (c) 2026 Wavestorm Software
 // DefoldDiscordSDK Defold extension
 //
 // Runtime loader for the Discord Social SDK native library
@@ -14,9 +14,9 @@
 //   4. ./defolddiscordsdk/res/<arch>/ relative to the working directory
 //      (x86_64-win32, x86_64-osx, x86_64-linux; see the placeholder files).
 //
-// The library is loaded without Alpine-style global symbol exposure
-// (RTLD_LOCAL-ish semantics): the game must never accidentally import SDK
-// symbols. Krisp noise cancellation support libraries are optional: when the
+// The library is loaded with symbol visibility kept local (RTLD_LOCAL on
+// POSIX, default LoadLibraryEx semantics on Windows): the game must never
+// accidentally import SDK symbols. Krisp noise cancellation support libraries are optional: when the
 // krisp binary sits next to the partner sdk it is preloaded by full path so
 // the partner sdk can load it implicitly by short name; when it is missing
 // (for example on Linux where krisp may not ship) loading continues and

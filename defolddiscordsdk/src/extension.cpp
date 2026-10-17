@@ -1,4 +1,4 @@
-// Copyright 2023-2026
+// Copyright (c) 2026 Wavestorm Software
 // DefoldDiscordSDK Defold extension
 //
 // Lua glue for the `discordsdk` module (see wiki/API-Reference.md, which is
@@ -67,11 +67,11 @@ const char* k_StubWarning =
     " stubs (network calls return false, getters empty) until the library is staged next to the"
     " game binary or [defolddiscordsdk] lib_path points at it.";
 
-void WarnStubOnce()
+void WarnStubOnce(const char* for_what)
 {
     if (!g_StubWarned) {
         g_StubWarned = true;
-        dmLogWarning("%s", k_StubWarning);
+        dmLogWarning("%s (first stub call: %s)", k_StubWarning, for_what ? for_what : "unknown");
     }
 }
 
@@ -86,8 +86,7 @@ bool NeedSdk(const char* for_what)
     if (!g_ExplicitlyDisabled && Available()) {
         return true;
     }
-    (void)for_what;
-    WarnStubOnce();
+    WarnStubOnce(for_what);
     return false;
 }
 
@@ -261,14 +260,14 @@ int InitializeLua(lua_State* L)
 
     g_ExplicitlyDisabled = !enabled;
     if (!enabled) {
-        WarnStubOnce();
+        WarnStubOnce("initialize (enabled = false)");
         lua_pushboolean(L, 0);
         return 1;
     }
 
     const DiscordSocialCapi* capi = discordsdk_loader::GetCapi();
     if (!capi) {
-        WarnStubOnce();
+        WarnStubOnce("initialize");
         lua_pushboolean(L, 0);
         return 1;
     }
@@ -363,7 +362,7 @@ std::string SdkVersionString()
 int VersionLua(lua_State* L)
 {
     std::string sdk = SdkVersionString();
-    std::string text = std::string("DefoldDiscordSDK 1.0.1 (Social SDK ") +
+    std::string text = std::string("DefoldDiscordSDK 1.0.2 (Social SDK ") +
                        (sdk.empty() ? "library not loaded" : sdk.c_str()) + ")";
     lua_pushlstring(L, text.c_str(), text.size());
     return 1;
@@ -1100,7 +1099,7 @@ void LuaInit(lua_State* L)
     PushStringConstant(L, "STATUS_OFFLINE", "offline");
 
     // ---- versions ----
-    PushStringConstant(L, "VERSION", "1.0.1");
+    PushStringConstant(L, "VERSION", "1.0.2");
     PushSdkVersion(L, "SDK_VERSION");
 
     lua_pop(L, 1);
@@ -1133,6 +1132,9 @@ static dmExtension::Result InitializeExtension(dmExtension::Params* params)
 static dmExtension::Result AppFinalizeExtension(dmExtension::AppParams* params)
 {
     (void)params;
+    // Instance finalize has already dropped the client and the Lua handlers;
+    // releasing the library handle closes the process-level teardown cleanly.
+    discordsdk_loader::Unload();
     return dmExtension::RESULT_OK;
 }
 

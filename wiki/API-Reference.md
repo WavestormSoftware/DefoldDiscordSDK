@@ -54,10 +54,10 @@ Bitmask passed through `update_presence` as `supported_platforms`; it controls w
 
 | Constant | Value | Meaning |
 | --- | --- | --- |
-| `discordsdk.PLATFORM_DESKTOP` | 1 | Any desktop target; the common value for desktop games |
-| `discordsdk.PLATFORM_WINDOWS` | 2 | Windows specifically |
-| `discordsdk.PLATFORM_MACOS` | 4 | macOS specifically |
-| `discordsdk.PLATFORM_LINUX` | 8 | Linux specifically |
+| `discordsdk.PLATFORM_DESKTOP` | 1 | The desktop presence target; the common value for desktop games |
+| `discordsdk.PLATFORM_WINDOWS` | 2 | Alias of the desktop bit: the SDK has no per-OS desktop flags, so this maps to the same desktop slot in `supported_platforms` |
+| `discordsdk.PLATFORM_MACOS` | 4 | Alias of the desktop bit (same as above) |
+| `discordsdk.PLATFORM_LINUX` | 8 | Alias of the desktop bit (same as above) |
 | `discordsdk.PLATFORM_ANDROID` | 16 | Android deep links |
 | `discordsdk.PLATFORM_IOS` | 32 | iOS deep links, not usable for presence-only RPC |
 

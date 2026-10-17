@@ -1,4 +1,4 @@
-// Copyright 2023-2026
+// Copyright (c) 2026 Wavestorm Software
 // DefoldDiscordSDK Defold extension
 //
 // Lua callback registry for SDK events.
@@ -79,8 +79,8 @@ void DiscordSocialEvents_ClearHandlers();
 bool DiscordSocialEvents_HasHandler(int kind);
 
 // Pushes the event payload onto the Lua stack. Implementations must push
-// exactly `user_arg_count` values (they receive the metrics-carrying context
-// pointer allocated by the dispatch site).
+// exactly `arg_count` values (they receive the context pointer allocated by
+// the dispatch site).
 typedef void (*DiscordSocialEventPush)(lua_State* L, void* context, int* out_arg_count);
 
 // Fires a registered handler. Returns true when a handler ran. The payload
