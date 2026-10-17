@@ -1,6 +1,10 @@
 # DefoldDiscordSDK
 
-![DefoldDiscordSDK - Discord Social SDK for Defold (assets/banner.svg)](assets/banner.png)
+<p align="center">
+  <img src="assets/logo.png" width="180" alt="DefoldDiscordSDK logo">
+</p>
+
+![DefoldDiscordSDK - the modern Discord Social SDK for Defold](assets/banner.png)
 
 [![platform](https://img.shields.io/badge/platform-windows%20%7C%20macos%20%7C%20linux-blue)](wiki/Platform-Support.md)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE.md)

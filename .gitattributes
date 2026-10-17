@@ -46,3 +46,7 @@
 *.dylib binary
 *.kef binary
 *.aar binary
+
+# Branding assets are for repository and README presentation only; the
+# Defold library zip does not need them, so keep it lean.
+assets/ export-ignore

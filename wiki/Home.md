@@ -1,5 +1,9 @@
 # Home
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/WavestormSoftware/DefoldDiscordSDK/main/assets/logo.png" width="140" alt="DefoldDiscordSDK logo">
+</p>
+
 `DefoldDiscordSDK` is a native [Defold](https://defold.com) extension that fully integrates the modern Discord Social SDK. It replaces the old, deprecated `discordrich` extension that was based on the discontinued discord-rpc client. The Lua module table is the global `discordsdk`; the extension folder is `defolddiscordsdk` and the extension library name is `DefoldDiscordSDK`.
 
 DefoldDiscordSDK is built and maintained by [Wavestorm Software](https://wavestorm.net/). Software. Games. Websites.
