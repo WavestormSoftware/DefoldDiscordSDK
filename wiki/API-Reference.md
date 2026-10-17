@@ -133,11 +133,14 @@ Payload tables are regular Lua tables; missing fields are `nil`.
 
 | Field | Type | Notes |
 | --- | --- | --- |
-| `message_id` | string | Snowflake id |
+| `id` | string | Snowflake id |
+| `channel_id` | string | Snowflake id of the backing Discord channel; equals `lobby_id` for lobby messages |
 | `lobby_id` | string or nil | Set for lobby messages |
-| `user_id` | string | Author |
+| `author_id` | string | Snowflake id of the author |
+| `author_username` | string | Display name of the author at send time |
 | `content` | string | Text |
-| `timestamp` | number | Unix seconds |
+| `created_at` | number | Unix seconds of the send time |
+| `from_game` | boolean | True when the message was sent from within a game |
 
 ### activity (invite payload activity)
 
@@ -367,6 +370,10 @@ Strings outside the set fail and return `false`.
 
 `boolean`. Injects tokens from your own storage to restore a previous linking without a new browser round trip. Persist with `sys.save`; see the pattern on the OAuth page.
 
+#### discordsdk.get_token()
+
+`table` or `nil`. The stored token pair as `{ access, refresh, scopes, expires_at }`, or `nil` while nothing is stored. `expires_at` is Unix seconds at which the access token expires (`0` when Discord did not report an expiry). This is the read side of the persistence pattern: `get_token()` + `sys.save` after `authorized`, `set_token()` + `connect()` on the next run. Treat the values as credentials: never log them, never print them, and keep `sys.save` data private to the player.
+
 #### discordsdk.clear_token()
 
 `boolean`. Forgets stored tokens locally; call `revoke_token()` as well to invalidate them server side.
@@ -420,7 +427,7 @@ Register with `discordsdk.set_callback(name, fn)`. Payload tables are snake_case
 | `lobby_member_updated` | A member changed their metadata or state | `{ lobby_id = "...", user_id = "..." }` |
 | `message_created` | A lobby text message was delivered to members, including the sender | `message` table |
 | `message_updated` | A message changed | `message` table |
-| `message_deleted` | A message was removed | `{ message_id = "...", lobby_id = "..." }` |
+| `message_deleted` | A message was removed | `{ message_id = "...", channel_id = "...", lobby_id = "..." }` |
 | `voice_participant_changed` | Voice participants in a call changed | `{ lobby_id = "...", users = { user, ... } }` |
 | `voice_settings_updated` | Local voice settings changed | `{ muted, deaf, noise_cancellation, noise_suppression, echo_cancellation, agc }` |
 | `presence_result` | One queued presence update was acknowledged by Discord | `{ ok = true or false, error = <string or nil> }` |

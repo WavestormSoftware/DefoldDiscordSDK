@@ -217,6 +217,20 @@ bool IsReady();
 // OAuth and tokens
 // ---------------------------------------------------------------------------
 
+// Plain values of the stored token pair (see GetTokenSnapshot). The extension
+// keeps the strings in memory only; persisting them to disk is the game's
+// decision through the Lua surface (discordsdk.get_token + sys.save).
+struct TokenSnapshot
+{
+    std::string m_Access;
+    std::string m_Refresh;
+    std::string m_Scopes;
+    int64_t m_ExpiresIn;  // seconds granted for the current access token
+    time_t m_ExpiresAt;   // unix seconds expiry (0 when unknown)
+
+    TokenSnapshot() : m_ExpiresIn(0), m_ExpiresAt(0) {}
+};
+
 bool Authorize();                              // challenge -> args -> Authorize
 bool SetToken(const char* access, const char* refresh); // UpdateToken, no auto-connect
 bool ClearToken();                             // forgets stored credentials
@@ -224,6 +238,7 @@ bool RefreshToken();                           // refresh -> UpdateToken
 bool RevokeToken();                            // server side grant invalidation
 bool IsAuthenticated();
 bool TokenConfigured();                        // a token pair is stored locally
+bool GetTokenSnapshot(TokenSnapshot* out);     // the stored pair for persistence
 
 // ---------------------------------------------------------------------------
 // Presence and status

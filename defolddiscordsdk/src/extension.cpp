@@ -362,7 +362,7 @@ std::string SdkVersionString()
 int VersionLua(lua_State* L)
 {
     std::string sdk = SdkVersionString();
-    std::string text = std::string("DefoldDiscordSDK 1.0.2 (Social SDK ") +
+    std::string text = std::string("DefoldDiscordSDK 1.0.3 (Social SDK ") +
                        (sdk.empty() ? "library not loaded" : sdk.c_str()) + ")";
     lua_pushlstring(L, text.c_str(), text.size());
     return 1;
@@ -874,6 +874,27 @@ int SetTokenLua(lua_State* L)
     return 1;
 }
 
+int GetTokenLua(lua_State* L)
+{
+    // Deliberately no SDK guard: the mirror answers locally, same contract as
+    // set_token and is_authenticated. Returns nil until something is stored.
+    discordsdk_client::TokenSnapshot token;
+    if (!discordsdk_client::GetTokenSnapshot(&token)) {
+        lua_pushnil(L);
+        return 1;
+    }
+    lua_newtable(L);
+    lua_pushstring(L, token.m_Access.c_str());
+    lua_setfield(L, -2, "access");
+    lua_pushstring(L, token.m_Refresh.c_str());
+    lua_setfield(L, -2, "refresh");
+    lua_pushstring(L, token.m_Scopes.c_str());
+    lua_setfield(L, -2, "scopes");
+    lua_pushnumber(L, (lua_Number)token.m_ExpiresAt); // unix seconds, 0 = unknown
+    lua_setfield(L, -2, "expires_at");
+    return 1;
+}
+
 int ClearTokenLua(lua_State* L)
 {
     lua_pushboolean(L, discordsdk_client::ClearToken() ? 1 : 0);
@@ -986,6 +1007,7 @@ const luaL_reg Module_methods[] = {
     { "set_online_status", SetOnlineStatusLua },
     { "authorize", AuthorizeLua },
     { "set_token", SetTokenLua },
+    { "get_token", GetTokenLua },
     { "clear_token", ClearTokenLua },
     { "refresh_token", RefreshTokenLua },
     { "revoke_token", RevokeTokenLua },
@@ -1099,7 +1121,7 @@ void LuaInit(lua_State* L)
     PushStringConstant(L, "STATUS_OFFLINE", "offline");
 
     // ---- versions ----
-    PushStringConstant(L, "VERSION", "1.0.2");
+    PushStringConstant(L, "VERSION", "1.0.3");
     PushSdkVersion(L, "SDK_VERSION");
 
     lua_pop(L, 1);

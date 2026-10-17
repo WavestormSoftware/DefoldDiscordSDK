@@ -84,14 +84,18 @@ function restore()
 end
 
 function store()
-    -- call this after authorized; read refresh values from your own login flow metadata
+    -- call this after authorized: get_token() hands out the stored pair
+    local t = discordsdk.get_token()
+    if t ~= nil then
+        sys.save(PATH, { access = t.access, refresh = t.refresh, scopes = t.scopes, expires_at = t.expires_at })
+    end
 end
 ```
 
 Notes:
 
 - `set_token(access, refresh)` restores a previous link without a browser round trip; follow it with `connect()`.
-- After a successful `refresh_token()`, capture what the SDK reports and update your store; on `authorized` the link is live again.
+- After a successful `refresh_token()`, or at any time after `authorized`, call `discordsdk.get_token()` and update your store with the returned `{ access, refresh, scopes, expires_at }` table; `nil` means nothing is stored yet.
 - `token_expired` means the access token failed: try `refresh_token()`, and on repeated failure fall back to `authorize()`.
 - `revoke_token()` invalidates the grant at Discord; use it for an account disconnect feature. `clear_token()` only forgets the local copy.
 

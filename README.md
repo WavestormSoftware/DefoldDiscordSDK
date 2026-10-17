@@ -148,7 +148,7 @@ Full reference: [wiki/Configuration.md](wiki/Configuration.md).
 | Lobbies | `lobby_join_or_create`, `lobby_leave`, `get_lobbies`, `lobby_send_message`, `lobby_get_messages` | [wiki/Lobbies.md](wiki/Lobbies.md) |
 | Voice | `start_voice`, `stop_voice`, `stop_all_voice`, control getters and setters, audio device selection | [wiki/Voice.md](wiki/Voice.md) |
 | Friends | `get_friends`, `get_friend`, relationship events | [wiki/Friends-and-Relationships.md](wiki/Friends-and-Relationships.md) |
-| OAuth and tokens | `authorize`, `set_token`, `clear_token`, `refresh_token`, `revoke_token`, `is_authenticated` | [wiki/OAuth-and-Tokens.md](wiki/OAuth-and-Tokens.md) |
+| OAuth and tokens | `authorize`, `set_token`, `get_token`, `clear_token`, `refresh_token`, `revoke_token`, `is_authenticated` | [wiki/OAuth-and-Tokens.md](wiki/OAuth-and-Tokens.md) |
 | User status | `set_online_status`, `get_current_user`, `user_updated` events | [wiki/Friends-and-Relationships.md](wiki/Friends-and-Relationships.md) |
 
 The exact Lua surface, every constant, and every event payload is documented in [wiki/API-Reference.md](wiki/API-Reference.md). Every function degrades gracefully: when the SDK library is unavailable the module returns `false`, `nil`, or empty tables so the game keeps running.

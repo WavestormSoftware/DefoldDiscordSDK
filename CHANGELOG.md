@@ -3,6 +3,30 @@
 All notable changes to DefoldDiscordSDK are documented here. The format is
 based on Keep a Changelog and the project uses semantic versioning.
 
+## [1.0.3] - 2026-10-17
+
+### Added
+
+- `discordsdk.get_token()` returns the stored token pair as
+  `{ access, refresh, scopes, expires_at }` (or `nil`), completing the
+  documented OAuth persistence pattern: `get_token()` + `sys.save` after
+  `authorized`, `set_token()` + `connect()` on the next run. Tokens stay
+  local memory inside the extension until the game chooses to persist them.
+
+### Fixed
+
+- The example script called APIs that do not exist (`create_or_join_lobby`,
+  `auth_state`) and passed wrong argument shapes to `send_invite` and
+  `send_join_request_reply`. It now binds the real surface directly
+  (`lobby_join_or_create`, `is_authenticated`, `discordsdk.INVITE_JOIN`,
+  `discordsdk.REPLY_YES`) and the lobby demo drives the chat message from
+  `lobby_created` the way the events actually arrive.
+- Wiki message payloads now match the real `message` table field names
+  (`id`, `author_id`, `author_username`, `created_at`, `from_game`), and
+  `message_deleted` documents the `channel_id` field it carries.
+- The OAuth page's persistence example stores real values via
+  `get_token()` instead of a stub that read from nothing.
+
 ## [1.0.2] - 2026-10-17
 
 ### Changed
@@ -79,6 +103,7 @@ Initial public release.
 - MIT-licensed extension code; the Discord Social SDK itself remains under
   Discord's own license terms and is fetched separately.
 
+[1.0.3]: https://github.com/WavestormSoftware/DefoldDiscordSDK/releases/tag/v1.0.3
 [1.0.2]: https://github.com/WavestormSoftware/DefoldDiscordSDK/releases/tag/v1.0.2
 [1.0.1]: https://github.com/WavestormSoftware/DefoldDiscordSDK/releases/tag/v1.0.1
 [1.0.0]: https://github.com/WavestormSoftware/DefoldDiscordSDK/releases/tag/v1.0.0

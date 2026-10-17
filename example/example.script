@@ -37,39 +37,25 @@ if type(discordsdk) ~= "table" then
 	MODULE_MISSING = true
 end
 
--- ## 2. API resolution ---------------------------------------------------
+-- ## 2. API surface ---------------------------------------------------
 
--- First function found among candidate names on the loaded module. This keeps
--- the demo working across small naming differences of the extension surface.
-local function resolve_api(...)
-	for i = 1, select("#", ...) do
-		local name = select(i, ...)
-		local fn = discordsdk[name]
-		if type(fn) == "function" then
-			return fn
-		end
-	end
-	return nil
-end
-
-local API = {}
-local API_CANDIDATES = {
-	update_presence         = { "update_presence", "update_rich_presence", "set_presence" },
-	clear_presence          = { "clear_presence", "clear_rich_presence" },
-	authorize               = { "authorize" },
-	auth_state              = { "get_token", "is_authorized", "authorized_state" },
-	send_invite             = { "send_activity_invite", "send_invite", "activity_invite_send" },
-	get_current_user        = { "get_current_user", "get_user" },
-	get_friends             = { "get_friends", "get_relationships" },
-	create_or_join_lobby    = { "create_or_join_lobby", "create_or_join_lobby_with_secret", "lobby_create_or_join" },
-	send_lobby_message      = { "send_lobby_message", "lobby_send_message" },
-	leave_lobby             = { "leave_lobby", "lobby_leave" },
-	send_join_request_reply = { "send_join_request_reply", "send_activity_join_request_reply" },
-	available               = { "available", "is_available" },
+-- Direct references to the real module surface (wiki/API-Reference.md is the
+-- contract). The table starts nil-filled when the extension is not in the
+-- build, and `call()` turns each missing entry into a console hint.
+local API = {
+	update_presence         = discordsdk.update_presence,
+	clear_presence          = discordsdk.clear_presence,
+	authorize               = discordsdk.authorize,
+	is_authenticated        = discordsdk.is_authenticated,
+	send_invite             = discordsdk.send_invite,
+	get_current_user        = discordsdk.get_current_user,
+	get_friends             = discordsdk.get_friends,
+	lobby_join_or_create    = discordsdk.lobby_join_or_create,
+	send_lobby_message      = discordsdk.send_lobby_message,
+	leave_lobby             = discordsdk.lobby_leave,
+	send_join_request_reply = discordsdk.send_join_request_reply,
+	is_available            = discordsdk.is_available,
 }
-for label, names in pairs(API_CANDIDATES) do
-	API[label] = resolve_api(unpack(names))
-end
 
 -- ## 3. Console and guard helpers ---------------------------------------
 
@@ -119,8 +105,8 @@ end
 -- The `discordsdk` module always exposes its functions: when the native binaries
 -- are missing the call runs as a no-op stub that returns false. Both that and
 -- a fully missing module fall back to a clear console hint instead of a crash.
--- (The "if not discordsdk.available()" idea is handled implicitly: when present,
--- available() is consulted at boot; every real call is checked by result.)
+-- (The "if not discordsdk.is_available()" idea is handled implicitly: when present,
+-- is_available() is consulted at boot; every real call is checked by result.)
 local function call(label, run)
 	if MODULE_MISSING or type(run) ~= "function" then
 		print(PREFIX_DEMO .. " '" .. label .. "' skipped: no such function in the discordsdk module.")
@@ -169,6 +155,7 @@ local function remember_user_id(slot, payload)
 end
 
 -- Extracts a lobby id: either the id itself or a payload table carrying it.
+-- Returns the id (also stored into STATE) or nil when nothing was useful.
 local function remember_lobby_id(payload)
 	local id = nil
 	if type(payload) == "number" then
@@ -182,6 +169,7 @@ local function remember_lobby_id(payload)
 		STATE.lobby_id = id
 		print(PREFIX_DEMO .. " demo lobby id: " .. tostring(id))
 	end
+	return id
 end
 
 -- Generic event handler for callbacks that only need to be logged.
@@ -219,22 +207,32 @@ local CALLBACKS = {
 	activity_invite_created = on_event("activity_invite_created"),
 	activity_join = function(...)
 		on_event("activity_join")(...)
-		print(PREFIX_EVENT .. " hint: pass the received secret to create_or_join_lobby to teleport the user's party")
+		print(PREFIX_EVENT .. " hint: pass the join secret to lobby_join_or_create to teleport the user's party")
 	end,
 	activity_join_request = function(...)
 		on_event("activity_join_request")(...)
-		print(PREFIX_EVENT .. " replying to the join request via send_join_request_reply")
 		local invite = first_table(...)
-		local ok_response = call("send_join_request_reply", function()
-			return API.send_join_request_reply(invite)
+		if type(invite) ~= "table" or invite.sender_id == nil then
+			print(PREFIX_EVENT .. " join request arrived without a sender id, leaving it unanswered")
+			return
+		end
+		print(PREFIX_EVENT .. " replying to the join request via send_join_request_reply")
+		local accepted = call("send_join_request_reply", function()
+			return API.send_join_request_reply(invite.sender_id, discordsdk.REPLY_YES)
 		end)
-		if ok_response ~= false then
+		if accepted ~= false then
 			print(PREFIX_EVENT .. " join request replied (check Discord for the result)")
 		end
 	end,
 	lobby_created = function(...)
 		on_event("lobby_created")(...)
-		remember_lobby_id(first_table(...))
+		local id = remember_lobby_id(first_table(...))
+		if id ~= nil then
+			print(PREFIX_DEMO .. " sending lobby message: '" .. DEMO_MESSAGE .. "'")
+			call("send_lobby_message", function()
+				return API.send_lobby_message(id, DEMO_MESSAGE)
+			end)
+		end
 	end,
 	lobby_updated = function(...)
 		on_event("lobby_updated")(...)
@@ -385,31 +383,38 @@ end
 local function demo_auth()
 	print(PREFIX_DEMO .. " key 4 - authorization")
 
-	-- Ask for the current token state when the extension exposes a getter.
+	-- is_authenticated answers locally about the stored token pair; get_token
+	-- exposes that pair for persistence. Neither path ever prints the values:
+	-- tokens are credentials and this demo keeps them out of the console.
 	local state = nil
-	if not MODULE_MISSING and type(API.auth_state) == "function" then
-		local ok, value = pcall(API.auth_state)
+	if not MODULE_MISSING and type(API.is_authenticated) == "function" then
+		local ok, value = pcall(API.is_authenticated)
 		if ok then
 			state = value
 		end
 	end
-	if type(state) == "table" then
-		print(PREFIX_DEMO .. " token state:")
-		print_table(state, "  ")
-		STATE.authorized = (state.authorized == true) or (state.Authorized == true)
-	elseif type(state) == "boolean" then
+	if type(state) == "boolean" then
 		print(PREFIX_DEMO .. " token state: " .. tostring(state))
 		STATE.authorized = state
 	elseif state ~= nil then
 		print(PREFIX_DEMO .. " token state: " .. tostring(state))
 	end
+	if not MODULE_MISSING and not STATE.authorized and type(API.get_token) == "function" then
+		local ok, token = pcall(API.get_token)
+		if ok and type(token) == "table" then
+			local expires_hint = "unknown"
+			if token.expires_at ~= nil and token.expires_at > 0 then
+				expires_hint = os.date("!%Y-%m-%d %H:%M:%S UTC", token.expires_at)
+			end
+			print(PREFIX_DEMO .. " stored token pair: yes (scopes: " .. tostring(token.scopes)
+				.. ", access expires: " .. expires_hint .. ")")
+		else
+			print(PREFIX_DEMO .. " stored token pair: no (authorize below, then discordsdk.get_token() + sys.save to persist)")
+		end
+	end
 
 	-- Only skip authorize() when we positively know we are authenticated.
-	local known_authorized =
-		(type(state) == "table" and STATE.authorized) or
-		(type(state) == "boolean" and state == true) or
-		(type(state) == "nil" and STATE.authorized)
-	if known_authorized then
+	if STATE.authorized then
 		print(PREFIX_DEMO .. " already authenticated - nothing more to do (state above)")
 		return
 	end
@@ -421,49 +426,23 @@ local function demo_auth()
 	end)
 end
 
-local function on_lobby_result(result, lobby_id)
-	if result ~= nil then
-		print(PREFIX_DEMO .. " lobby result:")
-		if type(result) == "table" then
-			print_table(result, "  ")
-		else
-			print("  " .. tostring(result))
-		end
-	end
-	if lobby_id == nil then
-		return
-	end
-	STATE.lobby_id = lobby_id
-	print(PREFIX_DEMO .. " demo lobby ready - id: " .. tostring(lobby_id))
-	print(PREFIX_DEMO .. " sending lobby message: '" .. DEMO_MESSAGE .. "'")
-	call("send_lobby_message", function()
-		return API.send_lobby_message(lobby_id, DEMO_MESSAGE)
-	end)
-end
-
 local function demo_lobby()
 	print(PREFIX_DEMO .. " key 5 - lobby demo")
 	if STATE.lobby_id ~= nil then
 		local id = STATE.lobby_id
 		STATE.lobby_id = nil
-		print(PREFIX_DEMO .. " leaving demo lobby " .. tostring(id) .. " (press 5 again to create or join)")
+		print(PREFIX_DEMO .. " leaving demo lobby " .. tostring(id) .. " (press 5 again to join or create)")
 		call("leave_lobby", function()
 			return API.leave_lobby(id)
 		end)
 		return
 	end
 
-	print(PREFIX_DEMO .. " creating or joining a lobby with fixed secret '" .. DEMO_LOBBY_SECRET .. "'")
-	print(PREFIX_DEMO .. " pressing 5 again leaves the lobby")
-	local joined = call("create_or_join_lobby", function()
-		return API.create_or_join_lobby(DEMO_LOBBY_SECRET, on_lobby_result)
+	print(PREFIX_DEMO .. " joining or creating a lobby with fixed secret '" .. DEMO_LOBBY_SECRET .. "'")
+	print(PREFIX_DEMO .. " the lobby id arrives through lobby_created; press 5 again to leave")
+	call("lobby_join_or_create", function()
+		return API.lobby_join_or_create(DEMO_LOBBY_SECRET)
 	end)
-	-- Some shapes return the lobby id directly instead of using the callback.
-	if type(joined) == "number" then
-		on_lobby_result(nil, joined)
-	elseif type(joined) == "table" and joined.lobby_id ~= nil then
-		on_lobby_result(joined.result, joined.lobby_id)
-	end
 end
 
 local function demo_invite()
@@ -481,7 +460,7 @@ local function demo_invite()
 	end
 	print(PREFIX_DEMO .. " sending invite to " .. label .. " (id " .. tostring(target) .. ")")
 	call("send_invite", function()
-		return API.send_invite(target, "Join my Defold demo - Rocket Arena grand final!")
+		return API.send_invite(target, discordsdk.INVITE_JOIN, "Join my Defold demo - Rocket Arena grand final!")
 	end)
 end
 
@@ -527,9 +506,9 @@ function init(self)
 		print("[discordsdk] module MISSING: add the defolddiscordsdk extension to this build.")
 	else
 		print("[discordsdk] module loaded.")
-		if type(API.available) == "function" then
-			local available = call("available", function()
-				return API.available()
+		if type(API.is_available) == "function" then
+			local available = call("is_available", function()
+				return API.is_available()
 			end)
 			if available == false then
 				print("[discordsdk] ERROR: the Discord Social SDK binaries are missing, so Discord features are disabled.")

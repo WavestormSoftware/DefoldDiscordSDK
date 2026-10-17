@@ -55,12 +55,12 @@ Delivery, including the sender's own copy, arrives through the message events:
 
 ```lua
 discordsdk.set_callback("message_created", function(msg)
-    -- msg = { message_id, lobby_id, user_id, content, timestamp }
-    chat_view.append(msg.content, msg.user_id, msg.timestamp)
+    -- msg = { id, channel_id, lobby_id, author_id, author_username, content, created_at, from_game }
+    chat_view.append(msg.content, msg.author_username, msg.created_at)
 end)
 ```
 
-`message_updated` and `message_deleted` carry the same shape for edits and removals.
+`message_updated` carries the same shape for edits; `message_deleted` arrives as `{ message_id, channel_id, lobby_id }`, a removal notice without content.
 
 Because each lobby is backed by a Discord-side chat location, the SDK resolves it for you and code only deals in lobby ids; there is no channel type to manage in Lua. When a lobby is linked to a Discord text channel in a server through the SDK's linked channels feature, messages flow in through `message_created` as well, so the same chat view renders both. The first time a user writes into such a linked lobby, the SDK injects one private disclosure message about visibility in Discord; it is marked by the SDK's disclosure type and is private to the sender, so your chat UI can translate it, style it, or skip it.
 

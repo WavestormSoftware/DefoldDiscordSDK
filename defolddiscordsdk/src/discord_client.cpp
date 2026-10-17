@@ -1673,6 +1673,19 @@ bool TokenConfigured()
     return !g_State.m_AccessToken.empty() || !g_State.m_RefreshToken.empty();
 }
 
+bool GetTokenSnapshot(TokenSnapshot* out)
+{
+    if (!out) {
+        return false;
+    }
+    out->m_Access = g_State.m_AccessToken;
+    out->m_Refresh = g_State.m_RefreshToken;
+    out->m_Scopes = g_State.m_GrantedScopes;
+    out->m_ExpiresIn = g_State.m_ExpiresIn;
+    out->m_ExpiresAt = g_State.m_ExpiresAt;
+    return TokenConfigured();
+}
+
 bool IsAuthenticated()
 {
     if (ReadyForCalls()) {
