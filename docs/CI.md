@@ -83,3 +83,27 @@ free public build server; Defold allows unrestricted use, so widening the
 trigger is a one-line change. For self-hosted coverage, run a local Extender
 server (see the "Setup local build server" manual at defold.com) and pass
 its URL via `--build-server`.
+
+## Automated releases (tag driven)
+
+A second workflow, `.github/workflows/release.yml`, publishes a GitHub
+release whenever a tag matching `x.y.z` or `vx.y.z` is pushed. It reuses the
+same quality gates, cross-compiles through the Defold build server, and only
+then publishes. Publication is atomic and dependent on prior steps:
+
+- `git archive` of the tag produces `DefoldDiscordSDK-<version>.zip`; a
+  stable-named `DefoldDiscordSDK.zip` copy accompanies it so the
+  `/releases/latest/download/DefoldDiscordSDK.zip` dependency URL always
+  works, and `SHA256SUMS-<version>.txt` covers both.
+- `scripts/ci/check_library_zip.py` asserts the Defold-required layout
+  (`game.project` with `include_dirs`, `defolddiscordsdk/ext.manifest`,
+  header and source files) and that no proprietary binaries slipped in.
+- `scripts/ci/release_notes.py` extracts the version's section from
+  `CHANGELOG.md`; a missing section aborts the run before publishing, so a
+  version cannot ship undocumented.
+
+Consumers can therefore depend on a release through GitHub's tag archive
+URL (for example
+`https://github.com/WavestormSoftware/DefoldDiscordSDK/archive/refs/tags/1.0.0.zip`)
+or the equivalent release asset, which is what Defold's project dependency
+setting consumes.

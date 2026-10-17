@@ -11,7 +11,18 @@ This page takes a Defold project from zero to a visible Discord presence and, op
 
 ## Step one: add the extension
 
-Either add this repository as a Defold dependency, Project, then Dependencies, then the GitHub URL https://github.com/WavestormSoftware/DefoldDiscordSDK, or copy the `defolddiscordsdk` extension folder into your project. Adding a dependency means Defold's build service compiles it; since the extension binds Discord's C ABI and loads the library at run time, no SDK headers are needed for that build.
+There are two ways.
+
+**Dependency on a release (simplest).** Add one of these URLs to the project dependencies (in `game.project` under `[project]`, or via Project, then Dependencies in the editor):
+
+```project
+[project]
+dependencies = https://github.com/WavestormSoftware/DefoldDiscordSDK/archive/refs/tags/1.0.0.zip
+```
+
+The tag archive URL (above) and the release asset URL `https://github.com/WavestormSoftware/DefoldDiscordSDK/releases/download/1.0.0/DefoldDiscordSDK-1.0.0.zip` are built automatically by the release workflow, contain `game.project` plus the `defolddiscordsdk` extension folder, and are pinned to that exact version. A release asset also exists under the stable name `DefoldDiscordSDK.zip`; the URL `https://github.com/WavestormSoftware/DefoldDiscordSDK/releases/latest/download/DefoldDiscordSDK.zip` always points at the newest release. A bare repository URL like `https://github.com/WavestormSoftware/DefoldDiscordSDK` also works but tracks the default branch instead of a released version.
+
+**Local copy.** Copy the `defolddiscordsdk` extension folder into your project. This is the right choice when you want to modify the extension, and it also lets you stage the SDK binaries inside `res/` without any extra plumbing (see [Installation.md](Installation.md)). Adding a dependency means Defold's build service compiles it; since the extension binds Discord's C ABI and loads the library at run time, no SDK headers are needed for that build.
 
 ## Step two: stage the SDK
 

@@ -1,0 +1,129 @@
+name: release
+
+# Publishes a GitHub release with a Defold-ready library zip whenever a
+# version tag is pushed (v1.2.3 or 1.2.3). The release contains the tracked
+# repository content as a zip (game.project + defolddiscordsdk/), which is
+# exactly what Defold's dependency loader consumes via a URL such as
+# https://github.com/WavestormSoftware/DefoldDiscordSDK/archive/refs/tags/1.0.0.zip
+
+on:
+  push:
+    tags: ['*.*.*']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: verify, cross-compile, and publish library zip
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Validate tag format
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          if ! echo "$TAG" | grep -Eq '^(v)?[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "Tag '$TAG' is not a supported version tag (x.y.z or vx.y.z)."
+            exit 1
+          fi
+          VERSION="${TAG#v}"
+          echo "tag=$TAG" >> "$GITHUB_ENV"
+          echo "version=$VERSION" >> "$GITHUB_ENV"
+          echo "zip=DefoldDiscordSDK-${VERSION}.zip" >> "$GITHUB_ENV"
+          echo "checksums=SHA256SUMS-${VERSION}.txt" >> "$GITHUB_ENV"
+
+      - name: Install toolchain
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq g++ lua5.1
+
+      - name: Quality gates (syntax, capi, lua, docs, license)
+        run: |
+          bash scripts/ci/syntax.sh
+          bash scripts/ci/capi_check.sh
+          bash scripts/ci/lua.sh
+          python3 scripts/ci/docs_check.py
+          python3 scripts/ci/license_audit.py
+
+      - name: Set up JDK (bob requires a recent OpenJDK)
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - name: Set up Defold bob
+        uses: dapetcu21/setup-defold@v3.0.2
+        with:
+          sha1: stable
+
+      - name: Cross-compile through the Defold build server
+        run: |
+          set -e
+          java -jar "$BOB" resolve
+          rm -rf build/ne-upload
+          mkdir -p build/ne-upload
+          cp -r defolddiscordsdk/src build/ne-upload/src
+          cp -r defolddiscordsdk/include build/ne-upload/include
+          for platform in x86_64-linux x86_64-win32 arm64-ios armv7-android; do
+            echo "== building for $platform =="
+            java -jar "$BOB" --build-server https://build.defold.com \
+              --ne-build-dir build/ne-upload \
+              --build-artifacts library --platform "$platform" build
+          done
+
+      - name: Upload build logs (kept on failure)
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-build-logs
+          path: build/**/log.txt
+          retention-days: 14
+
+      - name: Pack the Defold library zip
+        run: |
+          set -e
+          git archive --format=zip --output="$zip" "$tag"
+          python3 scripts/ci/check_library_zip.py "$zip"
+          # Stable-named copy so the /releases/latest/download/DefoldDiscordSDK.zip
+          # URL always resolves to the newest release.
+          cp "$zip" DefoldDiscordSDK.zip
+          sha256sum "$zip" DefoldDiscordSDK.zip > "$checksums"
+          ls -la "$zip" DefoldDiscordSDK.zip "$checksums"
+
+      - name: Extract release notes from the changelog
+        run: |
+          python3 scripts/ci/release_notes.py "$version" "$tag" \
+            "${{ github.repository }}" > release-notes.md
+          echo "-- release notes preview:"
+          head -12 release-notes.md
+
+      - name: Publish the GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$tag" \
+            --repo "${{ github.repository }}" \
+            --title "DefoldDiscordSDK $tag" \
+            --notes-file release-notes.md \
+            --latest \
+            "$zip" DefoldDiscordSDK.zip "$checksums"
+
+      - name: Write dependency links to the job summary
+        run: |
+          REPO="${{ github.repository }}"
+          {
+            echo "### Defold dependency URLs for $tag"
+            echo ""
+            echo "Tag archive: "
+            echo "https://github.com/$REPO/archive/refs/tags/$tag.zip"
+            echo ""
+            echo "Release asset:"
+            echo "https://github.com/$REPO/releases/download/$tag/$zip"
+          } >> "$GITHUB_STEP_SUMMARY"

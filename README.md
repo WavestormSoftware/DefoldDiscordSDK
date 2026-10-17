@@ -5,6 +5,8 @@
 [![platform](https://img.shields.io/badge/platform-windows%20%7C%20macos%20%7C%20linux-blue)](wiki/Platform-Support.md)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE.md)
 [![Defold](https://img.shields.io/badge/Defold-1%2B-blue)](https://defold.com)
+[![release](https://img.shields.io/github/v/release/WavestormSoftware/DefoldDiscordSDK?include_prereleases&color=blue)](https://github.com/WavestormSoftware/DefoldDiscordSDK/releases/latest)
+[![CI](https://img.shields.io/github/actions/workflow/status/WavestormSoftware/DefoldDiscordSDK/ci.yml?branch=main&label=CI)](https://github.com/WavestormSoftware/DefoldDiscordSDK/actions)
 
 `DefoldDiscordSDK` is a native Defold extension that fully integrates the modern Discord Social SDK. It replaces the old, deprecated `discordrich` extension that was built on the discontinued discord-rpc client library.
 
@@ -47,7 +49,14 @@ See [wiki/Platform-Support.md](wiki/Platform-Support.md) for details.
 ## Quick start
 
 1. **Prerequisites.** Install Defold. For presence mode you need a running Discord desktop client on the test machine (or the Discord app on Android). For the social layer, create a Discord application at the Developer Portal and enable the Social SDK for the application under App, then Getting Started.
-2. **Add the extension.** Add this repository as a project dependency in Defold (Project, then Dependencies, then provide https://github.com/WavestormSoftware/DefoldDiscordSDK), or copy the `defolddiscordsdk/` folder into your project.
+2. **Add the extension.** Preferred: point Defold's project dependencies at a tagged release zip. In `game.project`:
+
+   ```project
+   [project]
+   dependencies = https://github.com/WavestormSoftware/DefoldDiscordSDK/archive/refs/tags/1.0.0.zip
+   ```
+
+   See the [Releases](#releases) section below for all URL forms. Alternatively, copy the `defolddiscordsdk/` folder into your project, or add the bare repository URL (`https://github.com/WavestormSoftware/DefoldDiscordSDK`) in the editor under Project, then Dependencies.
 3. **Stage the SDK binaries.** Download the latest C++ variant of the Discord Social SDK from the Downloads page under your application and run the fetch tool:
 
    ```bash
@@ -143,6 +152,45 @@ Full reference: [wiki/Configuration.md](wiki/Configuration.md).
 | User status | `set_online_status`, `get_current_user`, `user_updated` events | [wiki/Friends-and-Relationships.md](wiki/Friends-and-Relationships.md) |
 
 The exact Lua surface, every constant, and every event payload is documented in [wiki/API-Reference.md](wiki/API-Reference.md). Every function degrades gracefully: when the SDK library is unavailable the module returns `false`, `nil`, or empty tables so the game keeps running.
+
+## Releases
+
+Every tag pushed to this repository in the form `1.0.0` or `v1.0.0` triggers the release workflow, which runs automatically and creates the GitHub release for you:
+
+1. All quality gates run: Lua parsing, C API consistency against the vendored header, documentation checks, and the license audit.
+2. The extension is genuinely cross-compiled through Defold's official build server for `x86_64-linux`, `x86_64-win32`, `arm64-ios`, and `armv7-android`.
+3. A GitHub release is published with:
+   - `DefoldDiscordSDK-<version>.zip`: the Defold library zip, built directly from the tag's tracked content (`git archive`), layout verified before upload
+   - `SHA256SUMS-<version>.txt`: integrity checksums for the zip
+   - release notes extracted from the matching `CHANGELOG.md` section, plus a ready-to-paste dependency snippet
+
+To cut a release, commit your changes, tag, and push; everything else is automatic:
+
+```bash
+git tag 1.0.1
+git push origin 1.0.1
+```
+
+The version must have a matching `## [1.0.1]` section in `CHANGELOG.md` before tagging, or the workflow stops before publishing.
+
+There are three equivalent URLs Defold accepts as a project dependency. Use any one of them (URL forms shown for tag `1.0.0`):
+
+```project
+[project]
+dependencies = https://github.com/WavestormSoftware/DefoldDiscordSDK/archive/refs/tags/1.0.0.zip
+```
+
+```project
+[project]
+dependencies = https://github.com/WavestormSoftware/DefoldDiscordSDK/releases/download/1.0.0/DefoldDiscordSDK-1.0.0.zip
+```
+
+```project
+[project]
+dependencies = https://github.com/WavestormSoftware/DefoldDiscordSDK/releases/latest/download/DefoldDiscordSDK.zip
+```
+
+The first two are pinned to that exact version (recommended); the third always follows the newest release. The zip contains `game.project` and `defolddiscordsdk/`, which is the layout Defold's library loader expects. The Discord Social SDK binaries are deliberately not packaged in it; fetch them separately as described below.
 
 ## Installing the SDK binaries
 

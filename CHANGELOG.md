@@ -37,6 +37,10 @@ Initial public release.
   vendored header, documentation quality, license audit and a real
   cross-platform compile through Defold's official build server
   (x86_64-linux, x86_64-win32, arm64-ios, armv7-android).
+- Automated tag-driven releases: pushing a semver tag runs all gates,
+  cross-compiles, and publishes a GitHub release containing the
+  Defold-ready library zip, stable-named latest pointer, checksums, and
+  changelog notes, ready to paste into game.project dependencies.
 - MIT-licensed extension code; the Discord Social SDK itself remains under
   Discord's own license terms and is fetched separately.
 
