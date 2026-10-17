@@ -3,6 +3,23 @@
 All notable changes to DefoldDiscordSDK are documented here. The format is
 based on Keep a Changelog and the project uses semantic versioning.
 
+## [1.0.1] - 2026-10-17
+
+### Fixed
+
+- Engine link failure on consuming projects: two SDK log and join callback
+  error paths referenced the `Discord_Free` allocator symbol directly, which
+  the Defold engine link cannot resolve because the Discord Social SDK is
+  only loaded at run time. Both paths now release (or consciously drop) the
+  SDK-owned string through the resolved function table, and a new CI gate
+  inspects compiled archives to prevent any direct ABI reference from
+  shipping again.
+
+### Removed
+
+- Dead helpers `PushDevices` and `FirePresenceResult` that produced
+  unused-function warnings during extension builds.
+
 ## [1.0.0] - 2026-10-17
 
 Initial public release.
@@ -44,4 +61,5 @@ Initial public release.
 - MIT-licensed extension code; the Discord Social SDK itself remains under
   Discord's own license terms and is fetched separately.
 
+[1.0.1]: https://github.com/WavestormSoftware/DefoldDiscordSDK/releases/tag/v1.0.1
 [1.0.0]: https://github.com/WavestormSoftware/DefoldDiscordSDK/releases/tag/v1.0.0

@@ -390,16 +390,6 @@ void PushDevice(lua_State* L, const discordsdk_client::DeviceSnap& device)
     lua_setfield(L, -2, "is_default");
 }
 
-void PushDevices(lua_State* L, const std::vector<discordsdk_client::DeviceSnap>& devices, int* arg_count)
-{
-    lua_newtable(L);
-    for (size_t i = 0; i < devices.size(); ++i) {
-        ::PushDevice(L, devices[i]);
-        lua_rawseti(L, -2, (int)(i + 1));
-    }
-    *arg_count = 1;
-}
-
 // ---------------------------------------------------------------------------
 // Snapshot readers. Every reader leaves no SDK handle behind.
 // ---------------------------------------------------------------------------
@@ -1024,6 +1014,21 @@ void ProcessResultOnly(Discord_ClientResult* result, const char* what)
 // SDK callback adapters (static C functions with the exact callback types)
 // ---------------------------------------------------------------------------
 
+// Releases an SDK-owned string with the allocator from the loaded capi
+// table. Callbacks can defensively fire outside a ready session; when the
+// table has been torn down the SDK allocator is unreachable and the string
+// is dropped with a warning. Never reference the allocator symbol directly:
+// the Social SDK binaries are loaded at run time, so a direct call cannot
+// be resolved by the engine link step on consumer projects.
+void FreeSdkString(const DiscordSocialCapi* capi, Discord_String* s, const char* where)
+{
+    if (capi && capi->m_Loaded) {
+        capi->Discord_Free(s->ptr);
+        return;
+    }
+    dmLogWarning("DefoldDiscordSDK: SDK string from %s reached an unloaded session; dropped.", where);
+}
+
 void DiscordSocialClient_OnStatusChanged(Discord_Client_Status status, Discord_Client_Error error,
                                          int32_t error_detail, void*)
 {
@@ -1036,7 +1041,7 @@ void DiscordSocialClient_OnStatusChanged(Discord_Client_Status status, Discord_C
 void DiscordSocialClient_OnLog(Discord_String message, Discord_LoggingSeverity severity, void*)
 {
     if (!g_State.m_Capi || !g_State.m_Capi->m_Loaded) {
-        Discord_Free(message.ptr);
+        FreeSdkString(g_State.m_Capi, &message, "log");
         return;
     }
     HandleLog(message, severity);
@@ -1205,7 +1210,7 @@ void DiscordSocialClient_OnInviteUpdated(Discord_ActivityInvite* invite, void*)
 void DiscordSocialClient_OnActivityJoin(Discord_String join_secret, void*)
 {
     if (!ReadyForCalls()) {
-        Discord_Free(join_secret.ptr);
+        FreeSdkString(g_State.m_Capi, &join_secret, "join callback");
         return;
     }
     std::string secret = DiscordSocialCapi_ReadString(*g_State.m_Capi, join_secret);
@@ -1484,8 +1489,8 @@ void DiscordSocialClient_OnAuthorizeCompleted(Discord_ClientResult* result, Disc
                                               Discord_String redirect_uri, void*)
 {
     if (!ReadyForCalls()) {
-        Discord_Free(code.ptr);
-        Discord_Free(redirect_uri.ptr);
+        FreeSdkString(g_State.m_Capi, &code, "authorize callback");
+        FreeSdkString(g_State.m_Capi, &redirect_uri, "authorize callback");
         return;
     }
     const DiscordSocialCapi& capi = *g_State.m_Capi;
@@ -1545,9 +1550,9 @@ void DiscordSocialClient_OnTokenExchange(Discord_ClientResult* result, Discord_S
 {
     (void)token_type;
     if (!ReadyForCalls()) {
-        Discord_Free(access_token.ptr);
-        Discord_Free(refresh_token.ptr);
-        Discord_Free(scopes.ptr);
+        FreeSdkString(g_State.m_Capi, &access_token, "token callback");
+        FreeSdkString(g_State.m_Capi, &refresh_token, "token callback");
+        FreeSdkString(g_State.m_Capi, &scopes, "token callback");
         return;
     }
     const DiscordSocialCapi& capi = *g_State.m_Capi;
@@ -1797,7 +1802,7 @@ bool AcceptInvite(uint64_t sender_id)
 void DiscordSocialClient_OnAcceptCompleted(Discord_ClientResult* result, Discord_String join_secret, void*)
 {
     if (!ReadyForCalls()) {
-        Discord_Free(join_secret.ptr);
+        FreeSdkString(g_State.m_Capi, &join_secret, "accept callback");
         return;
     }
     const DiscordSocialCapi& capi = *g_State.m_Capi;

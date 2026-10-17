@@ -93,6 +93,34 @@ jobs:
               --build-artifacts library --platform "$platform" build
           done
 
+      - name: Verify no direct Discord ABI references (engine link safety)
+        # The extension loads the Discord Social SDK at run time through a
+        # resolved function table, so the archive must contain no undefined
+        # Discord_* symbols: any direct call would fail the user's engine
+        # link (ld.lld: undefined symbol) because the SDK binary is never
+        # linked into the engine. Android/iOS archives use formats nm may
+        # not parse on the runner; they are skipped with a note.
+        run: |
+          set -e
+          found=""
+          for lib in build/*/libdefault.a; do
+            if syms=$(nm --undefined-only "$lib" 2>/dev/null | awk '{print $NF}'); then
+              hits=$(echo "$syms" | grep -E "^Discord_[A-Za-z0-9_]+$" || true)
+              if [ -n "$hits" ]; then
+                echo "ERROR: $lib references Discord ABI symbols directly:" >&2
+                echo "$hits" | sed 's/^/  /' >&2
+                found="yes"
+              fi
+            else
+              echo "note: skipping symbol check on $lib (format not supported by nm)"
+            fi
+          done
+          if [ -n "$found" ]; then
+            echo "Route the offending calls through the resolved capi table instead." >&2
+            exit 1
+          fi
+          echo "no direct Discord ABI references in any archive"
+
       - name: Upload build logs
         if: always()
         uses: actions/upload-artifact@v7

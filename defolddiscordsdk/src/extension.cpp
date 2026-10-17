@@ -363,7 +363,7 @@ std::string SdkVersionString()
 int VersionLua(lua_State* L)
 {
     std::string sdk = SdkVersionString();
-    std::string text = std::string("DefoldDiscordSDK 1.0.0 (Social SDK ") +
+    std::string text = std::string("DefoldDiscordSDK 1.0.1 (Social SDK ") +
                        (sdk.empty() ? "library not loaded" : sdk.c_str()) + ")";
     lua_pushlstring(L, text.c_str(), text.size());
     return 1;
@@ -1100,7 +1100,7 @@ void LuaInit(lua_State* L)
     PushStringConstant(L, "STATUS_OFFLINE", "offline");
 
     // ---- versions ----
-    PushStringConstant(L, "VERSION", "1.0.0");
+    PushStringConstant(L, "VERSION", "1.0.1");
     PushSdkVersion(L, "SDK_VERSION");
 
     lua_pop(L, 1);

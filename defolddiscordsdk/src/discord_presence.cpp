@@ -465,35 +465,6 @@ bool BuildActivity(lua_State* L, int table, Discord_Activity* activity)
     return true;
 }
 
-void FirePresenceResult(bool ok, const char* error_message)
-{
-    struct PresenceResultContext
-    {
-        bool m_Ok;
-        std::string m_Error;
-    };
-
-    struct PushPresenceResult
-    {
-        static void OnPush(lua_State* L, void* context, int* arg_count)
-        {
-            PresenceResultContext* ctx = (PresenceResultContext*)context;
-            lua_pushboolean(L, ctx->m_Ok ? 1 : 0);
-            if (ctx->m_Ok) {
-                lua_pushnil(L);
-            } else {
-                lua_pushstring(L, ctx->m_Error.c_str());
-            }
-            *arg_count = 2;
-        }
-    };
-
-    PresenceResultContext context;
-    context.m_Ok = ok;
-    context.m_Error = error_message ? error_message : std::string();
-    DiscordSocialEvents_Fire(DISCORD_SOCIAL_EVENT_PRESENCE_RESULT, PushPresenceResult::OnPush, &context);
-}
-
 // Dispatches a fully built activity. Takes ownership: always calls Drop on the
 // struct payload after the SDK copies it synchronously into its own storage
 // (mirroring the official wrapper, which lets its Activity object die right
