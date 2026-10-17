@@ -8,7 +8,7 @@ local discordsdk = require "discordsdk"
 
 ## Contracts
 
-- **Graceful degradation.** When the SDK library is unavailable, or `enabled = false`, every network call returns `false`, every getter returns `nil` or an empty table, and setters return `false`. The game keeps running. One log line explains the state; there are no hard errors.
+- **Graceful degradation plus a loud boot error.** When the SDK library is missing, the extension logs a clear boot-time error telling you to add the SDK (fetch tool or the `[defolddiscordsdk].lib_path` setting); it cannot break the Defold compile because nothing links against the SDK. For game code, when the SDK library is unavailable, or `enabled = false`, every network call returns `false`, every getter returns `nil` or an empty table, and setters return `false`, so the game still runs. Use `is_available()` or `get_status()` to branch on it.
 - **Ids are strings.** Discord ids are uint64 snowflakes and would lose precision as Lua numbers, so user ids, lobby ids, message ids, and the application id are passed and returned as strings, for example `"1349146942634065960"`.
 - **Asynchronous model.** Calls that reach Discord return `true` when the request was accepted into the extension's send path. Results arrive through events. Presence additionally reports per update through `presence_result`.
 - **Payload naming.** All payload tables use snake_case keys.

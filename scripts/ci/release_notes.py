@@ -55,11 +55,9 @@ dependencies = https://github.com/{repo}/archive/refs/tags/{tag}.zip
 ```
 
 The equivalent release asset is
-`https://github.com/{repo}/releases/download/{tag}/{name}-{version}.zip`
-(same content is also attached as `{name}.zip`, so the
-`https://github.com/{repo}/releases/latest/download/{name}.zip` URL always
-follows the newest release). Integrity checksums are provided in the
-release assets.
+`https://github.com/{repo}/releases/download/{tag}/{name}-{version}.zip` and
+refers to the same tracked content. Integrity checksums are provided in
+the release assets.
 
 The Discord Social SDK binaries are not part of the zip. Fetch them with
 `tools/fetch_discord_sdk.sh` or `.bat` (see the README's "Installing the SDK

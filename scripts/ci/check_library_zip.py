@@ -28,6 +28,7 @@ def main() -> int:
     required = [
         "game.project",
         "defolddiscordsdk/ext.manifest",
+        "defolddiscordsdk/ext.properties",
         "defolddiscordsdk/include/cdiscourd.h",
         "defolddiscordsdk/src/extension.cpp",
         "defolddiscordsdk/src/discordsdk_capi.cpp",

@@ -20,7 +20,7 @@ There are two ways.
 dependencies = https://github.com/WavestormSoftware/DefoldDiscordSDK/archive/refs/tags/1.0.0.zip
 ```
 
-The tag archive URL (above) and the release asset URL `https://github.com/WavestormSoftware/DefoldDiscordSDK/releases/download/1.0.0/DefoldDiscordSDK-1.0.0.zip` are built automatically by the release workflow, contain `game.project` plus the `defolddiscordsdk` extension folder, and are pinned to that exact version. A release asset also exists under the stable name `DefoldDiscordSDK.zip`; the URL `https://github.com/WavestormSoftware/DefoldDiscordSDK/releases/latest/download/DefoldDiscordSDK.zip` always points at the newest release. A bare repository URL like `https://github.com/WavestormSoftware/DefoldDiscordSDK` also works but tracks the default branch instead of a released version.
+The tag archive URL (above) and the release asset URL `https://github.com/WavestormSoftware/DefoldDiscordSDK/releases/download/1.0.0/DefoldDiscordSDK-1.0.0.zip` are built automatically by the release workflow, contain the tag's tracked source code (`game.project` plus the `defolddiscordsdk` extension folder), and are pinned to that exact version. Always point at a specific tagged version so your build stays reproducible; when you adopt a newer release, bump the tag in the URL. Defold compiles the extension sources through its cloud build service, so the zip needs no precompiled content. A bare repository URL like `https://github.com/WavestormSoftware/DefoldDiscordSDK` also works but tracks the default branch instead of a released version.
 
 **Local copy.** Copy the `defolddiscordsdk` extension folder into your project. This is the right choice when you want to modify the extension, and it also lets you stage the SDK binaries inside `res/` without any extra plumbing (see [Installation.md](Installation.md)). Adding a dependency means Defold's build service compiles it; since the extension binds Discord's C ABI and loads the library at run time, no SDK headers are needed for that build.
 
@@ -38,7 +38,7 @@ Windows:
 tools\fetch_discord_sdk.bat C:\path\to\discord-social-sdk-archive
 ```
 
-The tool puts the right binaries into `defolddiscordsdk/res/<platform>/`. Without them nothing breaks: the extension logs that the library is missing and the game keeps running with the module returning empty results.
+The tool puts the right binaries into `defolddiscordsdk/res/<platform>/`. Without them the extension logs a loud boot-time error telling you to add the SDK and every `discordsdk.*` call returns false; the game itself keeps running.
 
 ## Step three: configure the application id
 

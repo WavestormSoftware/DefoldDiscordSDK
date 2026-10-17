@@ -6,7 +6,7 @@ A table of observed symptoms, causes, and fixes. Work top to bottom when unsure;
 
 | Symptom | Cause | Fix |
 | --- | --- | --- |
-| Log reports the SDK library was not loaded; calls return `false` | Binaries not staged and no `lib_path` set | Run the fetch tool per [Installation.md](Installation.md), or set `[defolddiscordsdk] lib_path`. The game keeps running either way; rebuild and check `is_ready()`. |
+| Log reports the SDK library was not loaded; calls return `false` | Binaries not staged and no `lib_path` set | Run the fetch tool per [Installation.md](Installation.md), or set `[defolddiscordsdk] lib_path` in the editor category Defold Discord SDK. The game keeps running either way; rebuild and check `is_ready()`. |
 | Presence is set, nothing shows in Discord | Discord desktop client not running, or Game Activity disabled for your app in the client settings | Start the client; enable the app under Game Activity. The extension cannot raise the client for the user. |
 | Presence set on one device only, another device shows nothing | Rich presence via RPC is desktop and Android-only; not supported on iOS or web | Use the authenticated social path for those surfaces or ignore; see [Platform-Support.md](Platform-Support.md). |
 | Presence updates seem stuck during testing | Discord propagation of about a minute, plus the extension's five-per-twenty-seconds queue | Wait for propagation, watch `presence_result` events. Identical payloads are deduplicated, so change a field before re-sending. |

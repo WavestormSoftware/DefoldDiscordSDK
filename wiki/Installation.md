@@ -62,7 +62,7 @@ Shipping the binaries next to the game executable has the same effect; `lib_path
 
 ## What happens without the binaries
 
-The extension always keeps the game running. When the SDK library is missing, the module logs a clear line stating the library was not loaded, and every call returns `false`, `nil`, or an empty table as documented in the [API-Reference.md](API-Reference.md). To find out early, use `get_status()` and `is_ready()`.
+The game keeps running, but the extension fails loudly: at boot the log contains an error telling you the Discord Social SDK library was not found and how to add it (run the fetch tool, or set `[defolddiscordsdk].lib_path` in the editor category Defold Discord SDK). From game code, every call returns `false`, `nil`, or an empty table as documented in the [API-Reference.md](API-Reference.md). To find out early, use `get_status()` and `is_ready()`.
 
 ## Checklist
 

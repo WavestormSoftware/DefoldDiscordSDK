@@ -4,7 +4,7 @@ Configuration has two layers: static keys in the `[defolddiscordsdk]` section of
 
 ## game.project section
 
-Key order and defaults:
+The section is registered with the editor via the extension's `ext.properties` file, so in Defold it renders as a dedicated **Defold Discord SDK** category (Runtime group) in the `game.project` settings pane, with input labels and help tooltips per field. Key order and defaults:
 
 ```project
 [defolddiscordsdk]
