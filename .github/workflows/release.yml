@@ -1,10 +1,9 @@
 name: release
 
-# Publishes a GitHub release with a Defold-ready library zip whenever a
-# version tag is pushed (v1.2.3 or 1.2.3). The release contains the tracked
-# repository content as a zip (game.project + defolddiscordsdk/), which is
-# exactly what Defold's dependency loader consumes via a URL such as
-# https://github.com/WavestormSoftware/DefoldDiscordSDK/archive/refs/tags/1.0.0.zip
+# Publishes a GitHub release with the Defold library zip whenever a version
+# tag is pushed (v1.2.3 or 1.2.3). The zip is the tag's tracked source code
+# (game.project + defolddiscordsdk/) - Defold compiles the extension sources
+# itself when a consuming project builds; no build server is used here.
 
 on:
   push:
@@ -19,7 +18,7 @@ concurrency:
 
 jobs:
   release:
-    name: verify, cross-compile, and publish library zip
+    name: verify and publish source library zip
     runs-on: ubuntu-latest
 
     steps:
@@ -52,50 +51,13 @@ jobs:
           python3 scripts/ci/docs_check.py
           python3 scripts/ci/license_audit.py
 
-      - name: Set up JDK (bob requires a recent OpenJDK)
-        uses: actions/setup-java@v6
-        with:
-          distribution: temurin
-          java-version: '25'
-
-      - name: Set up Defold bob
-        uses: dapetcu21/setup-defold@v3.0.2
-        with:
-          sha1: stable
-
-      - name: Cross-compile through the Defold build server
-        run: |
-          set -e
-          java -jar "$BOB" resolve
-          rm -rf build/ne-upload
-          mkdir -p build/ne-upload
-          cp -r defolddiscordsdk/src build/ne-upload/src
-          cp -r defolddiscordsdk/include build/ne-upload/include
-          for platform in x86_64-linux x86_64-win32 arm64-ios armv7-android; do
-            echo "== building for $platform =="
-            java -jar "$BOB" --build-server https://build.defold.com \
-              --ne-build-dir build/ne-upload \
-              --build-artifacts library --platform "$platform" build
-          done
-
-      - name: Upload build logs (kept on failure)
-        if: failure()
-        uses: actions/upload-artifact@v7
-        with:
-          name: release-build-logs
-          path: build/**/log.txt
-          retention-days: 14
-
       - name: Pack the Defold library zip
         run: |
           set -e
           git archive --format=zip --output="$zip" "$tag"
           python3 scripts/ci/check_library_zip.py "$zip"
-          # Stable-named copy so the /releases/latest/download/DefoldDiscordSDK.zip
-          # URL always resolves to the newest release.
-          cp "$zip" DefoldDiscordSDK.zip
-          sha256sum "$zip" DefoldDiscordSDK.zip > "$checksums"
-          ls -la "$zip" DefoldDiscordSDK.zip "$checksums"
+          sha256sum "$zip" > "$checksums"
+          ls -la "$zip" "$checksums"
 
       - name: Extract release notes from the changelog
         run: |
@@ -113,17 +75,13 @@ jobs:
             --title "DefoldDiscordSDK $tag" \
             --notes-file release-notes.md \
             --latest \
-            "$zip" DefoldDiscordSDK.zip "$checksums"
+            "$zip" "$checksums"
 
-      - name: Write dependency links to the job summary
+      - name: Write dependency link to the job summary
         run: |
           REPO="${{ github.repository }}"
           {
-            echo "### Defold dependency URLs for $tag"
+            echo "### Defold dependency URL for $tag"
             echo ""
-            echo "Tag archive: "
             echo "https://github.com/$REPO/archive/refs/tags/$tag.zip"
-            echo ""
-            echo "Release asset:"
-            echo "https://github.com/$REPO/releases/download/$tag/$zip"
           } >> "$GITHUB_STEP_SUMMARY"

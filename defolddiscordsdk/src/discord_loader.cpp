@@ -323,10 +323,13 @@ bool Load(dmConfigFile::HConfig config)
         return true;
     }
 
-    dmLogWarning("DefoldDiscordSDK: " DISCORD_SOCIAL_PARTNER_LIB
-                 " not found. Copy it next to the game binary, set [defolddiscordsdk] lib_path in"
-                 " game.project, or place it under defolddiscordsdk/res/<arch>/. The extension runs"
-                 " in degraded no-op mode until the library is available.");
+    dmLogError("DefoldDiscordSDK: the Discord Social SDK library (%s) was not found, so all Discord"
+               " features are disabled. Fix by running the fetch tool once with your downloaded SDK"
+               " archive (tools/fetch_discord_sdk.sh, stages the libraries into"
+               " defolddiscordsdk/res/<arch>/), or set the [defolddiscordsdk] lib_path setting in"
+               " game.project (editor category 'Defold Discord SDK') to a folder containing the"
+               " library. See the 'Installing the SDK binaries' section of the README.",
+               DISCORD_SOCIAL_PARTNER_LIB);
     CloseModuleIfNeeded();
     return false;
 }

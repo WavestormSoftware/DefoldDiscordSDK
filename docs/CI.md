@@ -87,14 +87,16 @@ its URL via `--build-server`.
 ## Automated releases (tag driven)
 
 A second workflow, `.github/workflows/release.yml`, publishes a GitHub
-release whenever a tag matching `x.y.z` or `vx.y.z` is pushed. It reuses the
-same quality gates, cross-compiles through the Defold build server, and only
-then publishes. Publication is atomic and dependent on prior steps:
+release whenever a tag matching `x.y.z` or `vx.y.z` is pushed. The zip is
+pure source: Defold compiles the extension itself in the consuming project's
+build, so the release job runs only the quality gates and does not invoke
+the build server (the compile verification stays in the `ci.yml`
+`native-build` job). Publication steps:
 
-- `git archive` of the tag produces `DefoldDiscordSDK-<version>.zip`; a
-  stable-named `DefoldDiscordSDK.zip` copy accompanies it so the
-  `/releases/latest/download/DefoldDiscordSDK.zip` dependency URL always
-  works, and `SHA256SUMS-<version>.txt` covers both.
+- `git archive` of the tag produces `DefoldDiscordSDK-<version>.zip`, and
+  `SHA256SUMS-<version>.txt` carries its checksum. Only per-version URLs are
+  referenced in the notes; there is no stable "latest" asset name, so every
+  dependency link points at one specific, reproducible tag.
 - `scripts/ci/check_library_zip.py` asserts the Defold-required layout
   (`game.project` with `include_dirs`, `defolddiscordsdk/ext.manifest`,
   header and source files) and that no proprietary binaries slipped in.

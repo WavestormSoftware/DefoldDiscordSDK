@@ -532,8 +532,9 @@ function init(self)
 				return API.available()
 			end)
 			if available == false then
-				print("[discordsdk] SDK binaries are not staged; calls will no-op.")
-				print("[discordsdk] run tools/fetch_discord_sdk.sh (or .bat) to stage them.")
+				print("[discordsdk] ERROR: the Discord Social SDK binaries are missing, so Discord features are disabled.")
+				print("[discordsdk] Add them with: tools/fetch_discord_sdk.sh <path to your downloaded SDK archive>")
+				print("[discordsdk] or set the 'Discord SDK library location' field in game.project (editor category: Defold Discord SDK).")
 			end
 		end
 	end

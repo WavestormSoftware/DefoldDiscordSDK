@@ -17,7 +17,7 @@ The extension works in two modes:
 - **Presence mode (no login).** Rich presence is set through direct RPC to a running Discord desktop client (or the Discord app on Android). No account linking, no OAuth, no scopes.
 - **Full social mode (after account linking).** After a one-time OAuth authorization the game unlocks the full social layer: a unified friends list (Discord friends plus in-game Game Friends), game invites with deep links that drop players into exact sessions, client-side lobbies with text chat, metadata and history, and lobby voice chat with optional krisp noise cancellation.
 
-The Discord Social SDK binaries are proprietary and are not committed to this repository. They are staged locally with the fetch tool in `tools/`, or resolved at run time from a folder you configure. Because the extension binds Discord's C ABI and loads the library at run time, it compiles on Defold's cloud build service without the SDK present. When the library is missing the game keeps running and logs a clear warning.
+The Discord Social SDK binaries are proprietary and are not committed to this repository. They are staged locally with the fetch tool in `tools/`, or resolved at run time from a folder you configure. Because the extension binds Discord's C ABI and loads the library at run time, it compiles on Defold's cloud build service without the SDK present. If the library is missing at run time the extension fails loudly: the boot log prints a clear error telling you to add the SDK, and every `discordsdk.*` call returns false until it is installed.
 
 ## Features
 
@@ -125,7 +125,7 @@ The `authorized` callback fires when the browser flow completes. See [wiki/OAuth
 
 ## Configuration
 
-All keys live in the `[defolddiscordsdk]` section of `game.project`. Options can also be passed per call to `discordsdk.initialize()`. Defaults shown.
+All keys live in the `[defolddiscordsdk]` section of `game.project`. The section is registered with the editor through the extension's `ext.properties` file, so it shows up in the `game.project` settings pane under the category **Defold Discord SDK** (Runtime group) with per-field labels and help tooltips - no manual INI editing needed. Options can also be passed per call to `discordsdk.initialize()`. Defaults shown.
 
 | Key | Default | Description |
 | --- | --- | --- |
@@ -158,13 +158,12 @@ The exact Lua surface, every constant, and every event payload is documented in 
 Every tag pushed to this repository in the form `1.0.0` or `v1.0.0` triggers the release workflow, which runs automatically and creates the GitHub release for you:
 
 1. All quality gates run: Lua parsing, C API consistency against the vendored header, documentation checks, and the license audit.
-2. The extension is genuinely cross-compiled through Defold's official build server for `x86_64-linux`, `x86_64-win32`, `arm64-ios`, and `armv7-android`.
-3. A GitHub release is published with:
-   - `DefoldDiscordSDK-<version>.zip`: the Defold library zip, built directly from the tag's tracked content (`git archive`), layout verified before upload
-   - `SHA256SUMS-<version>.txt`: integrity checksums for the zip
+2. A GitHub release is published with:
+   - `DefoldDiscordSDK-<version>.zip`: the Defold library zip, containing the tag's tracked source code (`git archive`), layout verified before upload
+   - `SHA256SUMS-<version>.txt`: integrity checksum for the zip
    - release notes extracted from the matching `CHANGELOG.md` section, plus a ready-to-paste dependency snippet
 
-To cut a release, commit your changes, tag, and push; everything else is automatic:
+The zip is pure source: Defold compiles the extension itself through its cloud build service whenever your project builds, so no precompiled engine libraries ship here. To cut a release, commit your changes, tag, and push; everything else is automatic:
 
 ```bash
 git tag 1.0.1
@@ -173,24 +172,14 @@ git push origin 1.0.1
 
 The version must have a matching `## [1.0.1]` section in `CHANGELOG.md` before tagging, or the workflow stops before publishing.
 
-There are three equivalent URLs Defold accepts as a project dependency. Use any one of them (URL forms shown for tag `1.0.0`):
+Defold accepts the versioned tag archive URL as a project dependency. Reference per-version tags so your build stays reproducible; form shown for tag `1.0.0`:
 
 ```project
 [project]
 dependencies = https://github.com/WavestormSoftware/DefoldDiscordSDK/archive/refs/tags/1.0.0.zip
 ```
 
-```project
-[project]
-dependencies = https://github.com/WavestormSoftware/DefoldDiscordSDK/releases/download/1.0.0/DefoldDiscordSDK-1.0.0.zip
-```
-
-```project
-[project]
-dependencies = https://github.com/WavestormSoftware/DefoldDiscordSDK/releases/latest/download/DefoldDiscordSDK.zip
-```
-
-The first two are pinned to that exact version (recommended); the third always follows the newest release. The zip contains `game.project` and `defolddiscordsdk/`, which is the layout Defold's library loader expects. The Discord Social SDK binaries are deliberately not packaged in it; fetch them separately as described below.
+The equivalent release asset is `https://github.com/WavestormSoftware/DefoldDiscordSDK/releases/download/1.0.0/DefoldDiscordSDK-1.0.0.zip` (same content, pinned likewise). Bump the tag in the URL whenever you adopt a newer release. The zip contains `game.project` and `defolddiscordsdk/`, which is the layout Defold's library loader expects. The Discord Social SDK binaries are deliberately not packaged in it; fetch them separately as described below.
 
 ## Installing the SDK binaries
 
@@ -216,7 +205,7 @@ application_id = 1349146942634065960
 lib_path = /absolute/or/relative/path/to/discord/sdk/binaries
 ```
 
-The binaries are not committed to the repository and remain under Discord's own terms; see the License section below.
+In the editor, set it in the **Defold Discord SDK** category of the `game.project` settings pane (field *Discord SDK library location*). The binaries are not committed to the repository and remain under Discord's own terms; see the License section below.
 
 ## Testing notes
 
@@ -228,7 +217,7 @@ The binaries are not committed to the repository and remain under Discord's own 
 
 ## Troubleshooting
 
-- **No presence shows and the log reports a missing library.** Run the fetch tool, or set `[defolddiscordsdk] lib_path`. The game keeps running either way.
+- **No presence shows and the boot log raises a missing-library error.** Run the fetch tool, or set `[defolddiscordsdk] lib_path` in the editor's Defold Discord SDK category. The game keeps running either way.
 - **Presence set but nothing appears in Discord.** Check that the Discord desktop client is running, that Rich Presence is enabled, and that the user has not turned off the Game Activity setting for your app.
 - **`authorize()` fails with HTTP 401 or the browser page reports a redirect mismatch.** Check the registered redirect and the `default_redirect` option. See [wiki/OAuth-and-Tokens.md](wiki/OAuth-and-Tokens.md).
 - **Join button never appears.** Presence needs `party` with an id and sizes, a `join` secret, and `supported_platforms` set. Checklist in [wiki/Game-Invites-and-Joining.md](wiki/Game-Invites-and-Joining.md).
