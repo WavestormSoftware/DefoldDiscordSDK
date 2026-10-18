@@ -130,62 +130,72 @@ bool ParseSnowflakeOption(lua_State* L, int table, const char* key, uint64_t* ou
 
 bool ParseBoolOption(lua_State* L, int table, const char* key, bool default_value, bool* changed)
 {
-    *changed = false;
     lua_getfield(L, table, key);
     bool value = default_value;
+    bool given = false;
     if (lua_isboolean(L, -1)) {
         value = lua_toboolean(L, -1) != 0;
-        *changed = true;
+        given = true;
     } else if (lua_isstring(L, -1)) {
         value = discordsdk::ParseBool(lua_tostring(L, -1), default_value);
-        *changed = true;
+        given = true;
     }
     lua_pop(L, 1);
+    if (changed) {
+        *changed = given;
+    }
     return value;
 }
 
-std::string ParseStringOption(lua_State* L, int table, const char* key, bool* present)
+// The output string receives its content immediately, copied out of Lua's
+// stack; no std::string temporary lives across the Lua calls. Returns
+// whether the option was provided as a string value.
+bool ParseStringOption(lua_State* L, int table, const char* key, std::string* out)
 {
+    out->clear();
     lua_getfield(L, table, key);
-    std::string value;
-    if (lua_isstring(L, -1)) {
-        value = std::string(lua_tostring(L, -1));
+    bool present = lua_isstring(L, -1) != 0;
+    if (present) {
+        size_t length = 0;
+        const char* text = lua_tolstring(L, -1, &length);
+        out->assign(text, length);
     }
     lua_pop(L, 1);
-    if (present) {
-        *present = value.empty();
-    }
-    return value;
+    return present;
 }
 
 // The scopes option accepts the preset names, a raw separation string, or an
 // array of scope strings; the result is the space separated list the SDK
 // AuthorizationArgs wants.
-std::string ParseScopesOption(lua_State* L, int table, const char* key, bool* present)
+bool ParseScopesOption(lua_State* L, int table, const char* key, std::string* out)
 {
+    out->clear();
     lua_getfield(L, table, key);
-    std::string value;
+    bool present = false;
     if (lua_istable(L, -1)) {
+        present = true;
         int count = 0;
         lua_pushnil(L);
         while (lua_next(L, -2) != 0) {
             if (lua_isstring(L, -1)) {
                 if (count > 0) {
-                    value += " ";
+                    out->push_back(' ');
                 }
-                value += lua_tostring(L, -1);
+                size_t length = 0;
+                const char* scope = lua_tolstring(L, -1, &length);
+                out->append(scope, length);
                 ++count;
             }
             lua_pop(L, 1);
         }
     } else if (lua_isstring(L, -1)) {
-        value = lua_tostring(L, -1);
+        present = true;
+        size_t length = 0;
+        const char* text = lua_tolstring(L, -1, &length);
+        out->assign(text, length);
     }
     lua_pop(L, 1);
-    if (present) {
-        *present = !value.empty();
-    }
-    return value;
+    return present;
 }
 
 // Collects string keys/values from a Lua table into a std::map; numbers are
@@ -217,10 +227,10 @@ int InitializeLua(lua_State* L)
 
     if (lua_istable(L, 1)) {
         ParseSnowflakeOption(L, 1, "application_id", &options.m_ApplicationId);
-        options.m_Scopes = ParseScopesOption(L, 1, "scopes", 0);
+        ParseScopesOption(L, 1, "scopes", &options.m_Scopes);
         options.m_RegisterLaunchCommand =
             ParseBoolOption(L, 1, "auto_register_launch", options.m_RegisterLaunchCommand, 0);
-        options.m_DefaultRedirect = ParseStringOption(L, 1, "default_redirect", 0);
+        ParseStringOption(L, 1, "default_redirect", &options.m_DefaultRedirect);
         uint64_t steam_option = 0;
         ParseSnowflakeOption(L, 1, "steam_app_id", &steam_option);
         if (steam_option > 0xFFFFFFFFull) {
@@ -242,19 +252,18 @@ int InitializeLua(lua_State* L)
                                     &options.m_SteamAppId);
     }
     if (options.m_DefaultRedirect.empty()) {
-        options.m_DefaultRedirect = dmConfigFile::GetString(g_Config,
-                                                            "defolddiscordsdk.default_redirect", "");
+        options.m_DefaultRedirect.assign(dmConfigFile::GetString(g_Config,
+                                                                 "defolddiscordsdk.default_redirect", ""));
     }
     if (options.m_Scopes.empty()) {
-        std::string scopes = dmConfigFile::GetString(g_Config, "defolddiscordsdk.scopes", "");
-        if (scopes.empty()) {
-            scopes = k_PresenceScopePreset;
-        } else if (scopes == "presence") {
-            scopes = k_PresenceScopePreset;
-        } else if (scopes == "communication") {
-            scopes = k_CommunicationScopePreset;
+        const char* scopes = dmConfigFile::GetString(g_Config, "defolddiscordsdk.scopes", "");
+        if (scopes[0] == '\0' || strcmp(scopes, "presence") == 0) {
+            options.m_Scopes.assign(k_PresenceScopePreset);
+        } else if (strcmp(scopes, "communication") == 0) {
+            options.m_Scopes.assign(k_CommunicationScopePreset);
+        } else {
+            options.m_Scopes.assign(scopes);
         }
-        options.m_Scopes = scopes;
     }
     options.m_RegisterLaunchSteam = options.m_SteamAppId != 0;
 

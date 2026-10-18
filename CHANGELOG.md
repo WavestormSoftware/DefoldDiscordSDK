@@ -3,6 +3,27 @@
 All notable changes to DefoldDiscordSDK are documented here. The format is
 based on Keep a Changelog and the project uses semantic versioning.
 
+## [1.0.4] - 2026-10-18
+
+### Fixed
+
+- Passing any options table to `discordsdk.initialize()` could abort the
+  game at boot with heap corruption (`free(): invalid size`): the compiled
+  option parsing pushed a stack-local scratch string into the allocator
+  during the assignments that moved the parsed values into the client
+  options. Parsing now copies option values straight into their destination
+  (`ParseScopesOption`/`ParseStringOption` take an output parameter, the
+  game.project fallbacks use `assign`) so no string temporary outlives the
+  Lua calls, and the abort is gone. Verified against a repro of the 1.0.3
+  crash with a full variant matrix: no-args unchanged, `{}`, string scopes,
+  scopes arrays with mixed value types, `enabled = false`, string
+  coercions, and error paths all boot cleanly.
+- Two latent option-parser bugs fixed while diagnosing: `ParseBoolOption`
+  unconditionally wrote to its null `changed` pointer on both call sites,
+  and `ParseStringOption` reported the inverse of the intended `present`
+  flag (neither was observable through the public surface before, because
+  `initialize()` passed no flag).
+
 ## [1.0.3] - 2026-10-17
 
 ### Added
@@ -103,6 +124,7 @@ Initial public release.
 - MIT-licensed extension code; the Discord Social SDK itself remains under
   Discord's own license terms and is fetched separately.
 
+[1.0.4]: https://github.com/WavestormSoftware/DefoldDiscordSDK/releases/tag/v1.0.4
 [1.0.3]: https://github.com/WavestormSoftware/DefoldDiscordSDK/releases/tag/v1.0.3
 [1.0.2]: https://github.com/WavestormSoftware/DefoldDiscordSDK/releases/tag/v1.0.2
 [1.0.1]: https://github.com/WavestormSoftware/DefoldDiscordSDK/releases/tag/v1.0.1
