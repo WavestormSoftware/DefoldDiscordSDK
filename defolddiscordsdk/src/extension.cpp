@@ -371,7 +371,7 @@ std::string SdkVersionString()
 int VersionLua(lua_State* L)
 {
     std::string sdk = SdkVersionString();
-    std::string text = std::string("DefoldDiscordSDK 1.0.3 (Social SDK ") +
+    std::string text = std::string("DefoldDiscordSDK 1.0.5 (Social SDK ") +
                        (sdk.empty() ? "library not loaded" : sdk.c_str()) + ")";
     lua_pushlstring(L, text.c_str(), text.size());
     return 1;
@@ -864,7 +864,26 @@ int AuthorizeLua(lua_State* L)
         lua_pushboolean(L, 0);
         return 1;
     }
-    lua_pushboolean(L, discordsdk_client::Authorize() ? 1 : 0);
+    // authorize({ browser = true }) skips the SDK's Discord-client handoff and
+    // runs the loopback browser flow (see discord_client.cpp).
+    bool browser = false;
+    if (lua_istable(L, 1)) {
+        browser = ParseBoolOption(L, 1, "browser", false, 0);
+    }
+    bool ok = browser ? discordsdk_client::AuthorizeInBrowser() : discordsdk_client::Authorize();
+    lua_pushboolean(L, ok ? 1 : 0);
+    return 1;
+}
+
+int AbortAuthorizeLua(lua_State* L)
+{
+    discordsdk_client::AbortAuthorize();
+    return 0;
+}
+
+int IsAuthorizingLua(lua_State* L)
+{
+    lua_pushboolean(L, discordsdk_client::IsAuthorizing() ? 1 : 0);
     return 1;
 }
 
@@ -1015,6 +1034,8 @@ const luaL_reg Module_methods[] = {
     { "set_output_device", SetOutputDeviceLua },
     { "set_online_status", SetOnlineStatusLua },
     { "authorize", AuthorizeLua },
+    { "abort_authorize", AbortAuthorizeLua },
+    { "is_authorizing", IsAuthorizingLua },
     { "set_token", SetTokenLua },
     { "get_token", GetTokenLua },
     { "clear_token", ClearTokenLua },
@@ -1130,7 +1151,7 @@ void LuaInit(lua_State* L)
     PushStringConstant(L, "STATUS_OFFLINE", "offline");
 
     // ---- versions ----
-    PushStringConstant(L, "VERSION", "1.0.3");
+    PushStringConstant(L, "VERSION", "1.0.5");
     PushSdkVersion(L, "SDK_VERSION");
 
     lua_pop(L, 1);
@@ -1188,6 +1209,7 @@ static dmExtension::Result UpdateExtension(dmExtension::Params* params)
     if (capi) {
         // Pumps queued (rate-windowed) presence updates.
         discordsdk_presence::Pump();
+        discordsdk_client::PumpBrowserAuth();
         // SDK callbacks (status, invites, lobbies, messages, voice) flush on
         // the main thread. Guarded on load so a missing library never calls
         // through an empty table.

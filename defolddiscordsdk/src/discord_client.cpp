@@ -17,6 +17,36 @@
 //   - string getters fill a Discord_String whose ptr is freed through
 //     DiscordSocialCapi_ReadGetter / _ReadString.
 
+// Sockets first: winsock2.h must precede anything that pulls in windows.h.
+#if defined(_WIN32)
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#include <windows.h>
+#include <shellapi.h>
+typedef SOCKET LoopbackSocket;
+#define LOOPBACK_INVALID INVALID_SOCKET
+#define LoopbackClose closesocket
+#else
+#include <arpa/inet.h>
+#include <fcntl.h>
+#include <netinet/in.h>
+#include <spawn.h>
+#include <sys/socket.h>
+#include <sys/time.h>
+#include <sys/wait.h>
+#include <unistd.h>
+extern char** environ;
+typedef int LoopbackSocket;
+#define LOOPBACK_INVALID (-1)
+#define LoopbackClose close
+#endif
+
 #include "discord_client.h"
 
 #include <string.h>
@@ -1264,8 +1294,30 @@ const Options* GetOptions() { return ReadyForCalls() ? &g_State.m_Options : 0; }
 
 const DiscordSocialCapi* GetCapi() { return ReadyForCalls() ? g_State.m_Capi : 0; }
 
+// Loopback browser flow state (see AuthorizeInBrowser).
+struct BrowserAuth
+{
+    LoopbackSocket m_Listen;
+    std::string m_State;     // CSRF value echoed back by Discord
+    std::string m_Verifier;  // PKCE verifier for GetToken
+    std::string m_Redirect;  // http://127.0.0.1:<port>/callback
+    time_t m_Deadline;
+
+    BrowserAuth() : m_Listen(LOOPBACK_INVALID), m_Deadline(0) {}
+};
+BrowserAuth g_Browser;
+
+void CloseBrowserAuth()
+{
+    if (g_Browser.m_Listen != LOOPBACK_INVALID) {
+        LoopbackClose(g_Browser.m_Listen);
+    }
+    g_Browser = BrowserAuth();
+}
+
 void Shutdown()
 {
+    CloseBrowserAuth();
     if (g_State.m_ClientInited) {
         // Drop is the whole teardown: callbacks flush through
         // Discord_RunCallbacks in the main loop before this point.
@@ -1485,6 +1537,310 @@ bool Authorize()
     return true;
 }
 
+// ---------------------------------------------------------------------------
+// Loopback browser flow
+// ---------------------------------------------------------------------------
+// Discord_Client_Authorize prefers any peer listening on discord-ipc-N and never
+// times out. Third party clients (Vesktop/arRPC, some Flatpak bridges) accept
+// the IPC handshake but ignore AUTHORIZE, so the official flow hangs silently.
+// This path does what the SDK does without the client: PKCE + state, browser on
+// discord.com, redirect caught on 127.0.0.1, then the same GetToken exchange.
+
+static const int k_BrowserAuthTimeout = 300;
+
+static std::string PercentEncode(const std::string& in)
+{
+    static const char* hex = "0123456789ABCDEF";
+    std::string out;
+    for (size_t i = 0; i < in.size(); ++i) {
+        unsigned char c = (unsigned char)in[i];
+        if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-' || c == '_'
+            || c == '.' || c == '~') {
+            out.push_back((char)c);
+        } else {
+            out.push_back('%');
+            out.push_back(hex[c >> 4]);
+            out.push_back(hex[c & 15]);
+        }
+    }
+    return out;
+}
+
+static int HexValue(char c)
+{
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+    return -1;
+}
+
+// Value of `key` in an x-www-form-urlencoded query, decoded; false if absent.
+static bool QueryParam(const std::string& query, const char* key, std::string* out)
+{
+    size_t key_len = strlen(key);
+    size_t pos = 0;
+    while (pos <= query.size()) {
+        size_t end = query.find('&', pos);
+        if (end == std::string::npos) end = query.size();
+        if (end - pos > key_len && query.compare(pos, key_len, key) == 0 && query[pos + key_len] == '=') {
+            out->clear();
+            for (size_t i = pos + key_len + 1; i < end; ++i) {
+                if (query[i] == '%' && i + 2 < end && HexValue(query[i + 1]) >= 0 && HexValue(query[i + 2]) >= 0) {
+                    out->push_back((char)(HexValue(query[i + 1]) * 16 + HexValue(query[i + 2])));
+                    i += 2;
+                } else {
+                    out->push_back(query[i] == '+' ? ' ' : query[i]);
+                }
+            }
+            return true;
+        }
+        pos = end + 1;
+    }
+    return false;
+}
+
+#if !defined(_WIN32)
+static pid_t g_OpenerPid = 0;
+#endif
+
+static bool OpenBrowser(const std::string& url)
+{
+#if defined(_WIN32)
+    return (INT_PTR)ShellExecuteA(NULL, "open", url.c_str(), NULL, NULL, SW_SHOWNORMAL) > 32;
+#else
+#if defined(__APPLE__)
+    const char* opener = "open";
+#else
+    const char* opener = "xdg-open";
+#endif
+    // posix_spawn instead of fork: the engine is multithreaded.
+    pid_t pid = 0;
+    char* argv[] = { (char*)opener, (char*)url.c_str(), 0 };
+    if (posix_spawnp(&pid, opener, 0, 0, argv, environ) != 0) {
+        return false;
+    }
+    // xdg-open/open exit quickly; PumpBrowserAuth reaps them without blocking.
+    g_OpenerPid = pid;
+    return true;
+#endif
+}
+
+static void SendLoopbackPage(LoopbackSocket client, const char* status, const char* message)
+{
+    std::string body = std::string("<!doctype html><html><head><meta charset=\"utf-8\"><title>Discord</title></head>"
+                                   "<body style=\"font-family:sans-serif;text-align:center;padding-top:15vh\"><h2>")
+        + message + "</h2><p>You can close this tab and return to the game.</p></body></html>";
+    char header[160];
+    snprintf(header, sizeof(header),
+             "HTTP/1.1 %s\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: %u\r\nConnection: close\r\n\r\n",
+             status, (unsigned)body.size());
+    std::string reply = std::string(header) + body;
+    send(client, reply.data(), (int)reply.size(), 0);
+}
+
+bool IsAuthorizing() { return g_State.m_AuthorizePending || g_Browser.m_Listen != LOOPBACK_INVALID; }
+
+void AbortAuthorize()
+{
+    // Cleared before the abort: the SDK answers it with an "authorize aborted"
+    // callback, which must not surface as an error for a cancel we asked for.
+    bool was_pending = g_State.m_AuthorizePending;
+    g_State.m_AuthorizePending = false;
+    g_State.m_PendingVerifier.clear();
+    if (ReadyForCalls() && was_pending) {
+        g_State.m_Capi->Discord_Client_AbortAuthorize(&g_State.m_Client);
+    }
+    CloseBrowserAuth();
+}
+
+bool AuthorizeInBrowser()
+{
+    if (!ReadyForCalls()) {
+        return false;
+    }
+    if (g_State.m_Options.m_ApplicationId == 0) {
+        FireError("authorize called without an application id", "authorize");
+        return false;
+    }
+    // A hung SDK flow (or an older browser attempt) is replaced, never stacked.
+    AbortAuthorize();
+
+#if defined(_WIN32)
+    WSADATA wsa;
+    WSAStartup(MAKEWORD(2, 2), &wsa);
+#endif
+    LoopbackSocket listener = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (listener == LOOPBACK_INVALID) {
+        FireError("could not open a local socket for the browser login", "authorize");
+        return false;
+    }
+    sockaddr_in addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK); // never reachable from the network
+    addr.sin_port = 0;                             // ephemeral; Discord accepts any loopback port
+    socklen_t addr_len = sizeof(addr);
+    if (bind(listener, (sockaddr*)&addr, sizeof(addr)) != 0 || listen(listener, 4) != 0
+        || getsockname(listener, (sockaddr*)&addr, &addr_len) != 0) {
+        LoopbackClose(listener);
+        FireError("could not listen on 127.0.0.1 for the browser login", "authorize");
+        return false;
+    }
+#if defined(_WIN32)
+    u_long nonblocking = 1;
+    ioctlsocket(listener, FIONBIO, &nonblocking);
+#else
+    fcntl(listener, F_SETFL, fcntl(listener, F_GETFL, 0) | O_NONBLOCK);
+#endif
+
+    const DiscordSocialCapi& capi = *g_State.m_Capi;
+    Discord_Client* client = &g_State.m_Client;
+    Discord_AuthorizationCodeVerifier verifier;
+    memset(&verifier, 0, sizeof(verifier));
+    capi.Discord_Client_CreateAuthorizationCodeVerifier(client, &verifier);
+    Discord_AuthorizationCodeChallenge challenge;
+    memset(&challenge, 0, sizeof(challenge));
+    capi.Discord_AuthorizationCodeVerifier_Challenge(&verifier, &challenge);
+    Discord_String text;
+    memset(&text, 0, sizeof(text));
+    capi.Discord_AuthorizationCodeVerifier_Verifier(&verifier, &text);
+    std::string verifier_text = DiscordSocialCapi_ReadGetter(capi, &text);
+    memset(&text, 0, sizeof(text));
+    capi.Discord_AuthorizationCodeChallenge_Challenge(&challenge, &text);
+    std::string challenge_text = DiscordSocialCapi_ReadGetter(capi, &text);
+    capi.Discord_AuthorizationCodeChallenge_Drop(&challenge);
+    capi.Discord_AuthorizationCodeVerifier_Drop(&verifier);
+
+    // A second verifier is a cheap source of a cryptographically random state.
+    Discord_AuthorizationCodeVerifier state_source;
+    memset(&state_source, 0, sizeof(state_source));
+    capi.Discord_Client_CreateAuthorizationCodeVerifier(client, &state_source);
+    memset(&text, 0, sizeof(text));
+    capi.Discord_AuthorizationCodeVerifier_Verifier(&state_source, &text);
+    std::string state = DiscordSocialCapi_ReadGetter(capi, &text);
+    capi.Discord_AuthorizationCodeVerifier_Drop(&state_source);
+
+    if (verifier_text.empty() || challenge_text.empty() || state.empty()) {
+        LoopbackClose(listener);
+        FireError("the SDK did not produce a PKCE challenge", "authorize");
+        return false;
+    }
+
+    char redirect[64];
+    snprintf(redirect, sizeof(redirect), "http://127.0.0.1:%u/callback", (unsigned)ntohs(addr.sin_port));
+    std::string url = std::string("https://discord.com/oauth2/authorize?response_type=code")
+        + "&client_id=" + discordsdk::Uint64ToString(g_State.m_Options.m_ApplicationId)
+        + "&scope=" + PercentEncode(g_State.m_Options.m_Scopes)
+        + "&state=" + PercentEncode(state)
+        + "&redirect_uri=" + PercentEncode(redirect)
+        + "&code_challenge=" + PercentEncode(challenge_text)
+        + "&code_challenge_method=S256";
+
+    if (!OpenBrowser(url)) {
+        LoopbackClose(listener);
+        FireError("could not open the web browser", "authorize");
+        return false;
+    }
+    g_Browser.m_Listen = listener;
+    g_Browser.m_State = state;
+    g_Browser.m_Verifier = verifier_text;
+    g_Browser.m_Redirect = redirect;
+    g_Browser.m_Deadline = time(0) + k_BrowserAuthTimeout;
+    dmLogInfo("DefoldDiscordSDK: browser login opened (redirect %s)", redirect);
+    return true;
+}
+
+void PumpBrowserAuth()
+{
+#if !defined(_WIN32)
+    if (g_OpenerPid > 0 && waitpid(g_OpenerPid, 0, WNOHANG) != 0) {
+        g_OpenerPid = 0;
+    }
+#endif
+    if (g_Browser.m_Listen == LOOPBACK_INVALID) {
+        return;
+    }
+    if (time(0) > g_Browser.m_Deadline) {
+        CloseBrowserAuth();
+        FireError("the browser login timed out", "authorize");
+        return;
+    }
+    LoopbackSocket client = accept(g_Browser.m_Listen, 0, 0);
+    if (client == LOOPBACK_INVALID) {
+        return; // nothing yet (non-blocking)
+    }
+#if defined(_WIN32)
+    u_long blocking = 0;
+    ioctlsocket(client, FIONBIO, &blocking);
+    DWORD timeout_ms = 500;
+    setsockopt(client, SOL_SOCKET, SO_RCVTIMEO, (const char*)&timeout_ms, sizeof(timeout_ms));
+#else
+    fcntl(client, F_SETFL, fcntl(client, F_GETFL, 0) & ~O_NONBLOCK);
+    timeval timeout;
+    timeout.tv_sec = 0;
+    timeout.tv_usec = 500000;
+    setsockopt(client, SOL_SOCKET, SO_RCVTIMEO, (const char*)&timeout, sizeof(timeout));
+#endif
+    // Only the request line matters; it arrives in the first packet in practice.
+    std::string request;
+    char buffer[2048];
+    while (request.find("\r\n") == std::string::npos && request.size() < 8192) {
+        int got = (int)recv(client, buffer, sizeof(buffer), 0);
+        if (got <= 0) break;
+        request.append(buffer, (size_t)got);
+    }
+    std::string line = request.substr(0, request.find("\r\n"));
+    const std::string prefix = "GET /callback?";
+    if (line.compare(0, prefix.size(), prefix) != 0) {
+        // favicon.io and stray local probes: answer and keep waiting.
+        SendLoopbackPage(client, "404 Not Found", "Nothing here");
+        LoopbackClose(client);
+        return;
+    }
+    size_t query_end = line.find(' ', prefix.size());
+    std::string query = line.substr(prefix.size(), query_end == std::string::npos ? std::string::npos
+                                                                                  : query_end - prefix.size());
+    std::string state, code, error;
+    QueryParam(query, "state", &state);
+    if (state != g_Browser.m_State) {
+        // Not our request (CSRF or a stale tab): refuse, keep waiting for the real one.
+        SendLoopbackPage(client, "400 Bad Request", "This login link is not valid anymore");
+        LoopbackClose(client);
+        return;
+    }
+    if (!QueryParam(query, "code", &code) || code.empty()) {
+        QueryParam(query, "error", &error);
+        SendLoopbackPage(client, "200 OK", "Discord linking was cancelled");
+        LoopbackClose(client);
+        CloseBrowserAuth();
+        FireError(error.empty() ? std::string("authorization was cancelled") : error, "authorize");
+        return;
+    }
+    SendLoopbackPage(client, "200 OK", "Discord account linked");
+    LoopbackClose(client);
+    if (!ReadyForCalls()) {
+        CloseBrowserAuth();
+        return;
+    }
+
+    std::string verifier = g_Browser.m_Verifier;
+    std::string redirect = g_Browser.m_Redirect;
+    CloseBrowserAuth();
+
+    Discord_String code_arg;
+    code_arg.ptr = (uint8_t*)code.data();
+    code_arg.size = code.size();
+    Discord_String verifier_arg;
+    verifier_arg.ptr = (uint8_t*)verifier.data();
+    verifier_arg.size = verifier.size();
+    Discord_String redirect_arg;
+    redirect_arg.ptr = (uint8_t*)redirect.data();
+    redirect_arg.size = redirect.size();
+    g_State.m_Capi->Discord_Client_GetToken(&g_State.m_Client, g_State.m_Options.m_ApplicationId, code_arg,
+                                            verifier_arg, redirect_arg, &DiscordSocialClient_OnTokenExchange,
+                                            &DiscordSocialClient_FreeCallbackData, 0);
+}
+
 void DiscordSocialClient_OnAuthorizeCompleted(Discord_ClientResult* result, Discord_String code,
                                               Discord_String redirect_uri, void*)
 {
@@ -1496,6 +1852,13 @@ void DiscordSocialClient_OnAuthorizeCompleted(Discord_ClientResult* result, Disc
     const DiscordSocialCapi& capi = *g_State.m_Capi;
     std::string code_text = DiscordSocialCapi_ReadString(capi, code);
     std::string redirect = DiscordSocialCapi_ReadString(capi, redirect_uri);
+    if (!g_State.m_AuthorizePending) {
+        // Aborted on purpose (abort_authorize or the browser flow took over).
+        if (result) {
+            DropClientResult(result);
+        }
+        return;
+    }
     std::string verifier = g_State.m_PendingVerifier;
     g_State.m_PendingVerifier.clear();
     g_State.m_AuthorizePending = false;

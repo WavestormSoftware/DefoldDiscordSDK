@@ -1,1 +1,9 @@
 name: "DefoldDiscordSDK"
+
+platforms:
+    x86_64-win32:
+        context:
+            libs: ["ws2_32", "shell32"]
+    x86-win32:
+        context:
+            libs: ["ws2_32", "shell32"]

@@ -232,6 +232,13 @@ struct TokenSnapshot
 };
 
 bool Authorize();                              // challenge -> args -> Authorize
+// Loopback browser flow: opens the system browser on Discord's consent page and
+// catches the redirect on 127.0.0.1 itself. Works when the SDK's own flow hands
+// the request to a Discord IPC peer that never answers (Vesktop/arRPC, etc.).
+bool AuthorizeInBrowser();
+void AbortAuthorize();                         // cancels both flows, clears pending
+bool IsAuthorizing();
+void PumpBrowserAuth();                        // per frame: accepts the redirect
 bool SetToken(const char* access, const char* refresh); // UpdateToken, no auto-connect
 bool ClearToken();                             // forgets stored credentials
 bool RefreshToken();                           // refresh -> UpdateToken

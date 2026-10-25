@@ -45,7 +45,7 @@ discordsdk.set_callback("error", function(e)
 end)
 ```
 
-`authorize()` opens the system browser at Discord, the player approves, and the browser hands the result back to the installed extension flow. The call returns `true` when the flow could start, not when linking finished; completion is exactly the `authorized` event.
+`authorize()` lets the SDK pick: a running Discord client over local IPC, else the system browser. `authorize({ browser = true })` always uses the browser and catches the redirect on `127.0.0.1` itself; prefer it when players may run third party clients (Vesktop/arRPC) that own the IPC socket but ignore authorization, which leaves the SDK flow pending forever. Register `http://127.0.0.1/callback` as a redirect in the developer portal for either flow. The call returns `true` when the flow could start, not when linking finished; completion is exactly the `authorized` event.
 
 Redirect handling: the SDK's default redirect resolves through the Discord application configuration. Set `default_redirect` in `[defolddiscordsdk]` or `initialize()` when you host your own redirect page or need an explicit target for your build environment. A mismatch between what the portal has registered and what the game requests produces a browser-side 401 or redirect mismatch page and an `error` event. Keep the portal list and the option aligned.
 

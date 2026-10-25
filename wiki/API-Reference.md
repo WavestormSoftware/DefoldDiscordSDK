@@ -362,9 +362,17 @@ Strings outside the set fail and return `false`.
 
 ### OAuth and tokens
 
-#### discordsdk.authorize()
+#### discordsdk.authorize([options])
 
-`boolean` when the flow started. Opens the system browser with the configured scopes and completes through the `authorized` event; failures surface through `error`. Full flow in [OAuth-and-Tokens.md](OAuth-and-Tokens.md).
+`boolean` when the flow started. Without options the SDK runs its own flow: it hands the request to a running Discord client when one answers on the local IPC socket, otherwise it opens the system browser. With `{ browser = true }` the extension skips the client handoff, opens the browser itself and catches the redirect on `127.0.0.1` (any free port, the portal entry `http://127.0.0.1/callback` covers it). Use that when the client handoff stalls, which happens with third party clients such as Vesktop/arRPC that own the IPC socket but ignore authorization requests. Both complete through the `authorized` event; failures surface through `error` with `detail = "authorize"`. A browser attempt times out after 5 minutes. Full flow in [OAuth-and-Tokens.md](OAuth-and-Tokens.md).
+
+#### discordsdk.abort_authorize()
+
+Cancels a pending `authorize()` of either kind and closes the local redirect listener. A cancel never fires `error`.
+
+#### discordsdk.is_authorizing()
+
+`boolean`. `true` while an `authorize()` attempt is still waiting for a result.
 
 #### discordsdk.set_token(access_token, refresh_token)
 

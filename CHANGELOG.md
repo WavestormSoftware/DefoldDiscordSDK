@@ -3,6 +3,30 @@
 All notable changes to DefoldDiscordSDK are documented here. The format is
 based on Keep a Changelog and the project uses semantic versioning.
 
+## [1.0.5] - 2026-10-25
+
+### Added
+
+- `authorize({ browser = true })`: a loopback browser login that does not
+  depend on a Discord client. The extension builds the PKCE + state
+  request itself, opens the system browser (`xdg-open`/`open`/
+  `ShellExecute`), accepts the redirect on `127.0.0.1:<ephemeral port>`
+  (loopback only, forged `state` is refused and the listener keeps
+  waiting), then exchanges the code through the same `GetToken` path as
+  the SDK flow. Times out after 5 minutes.
+- `abort_authorize()` and `is_authorizing()`.
+
+### Fixed
+
+- Linking did nothing when a third party client (Vesktop/arRPC) owned the
+  `discord-ipc-0` socket: the SDK sent the authorization to that client,
+  which never answers, and `authorize()` stayed pending forever. Every
+  later call was then ignored as "already running". The pending attempt
+  can now be cancelled or replaced by the browser flow.
+- Cancelling a pending SDK authorization no longer surfaces as an
+  `authorize aborted` error.
+- `version()` and `VERSION` reported 1.0.3 in the 1.0.4 release.
+
 ## [1.0.4] - 2026-10-18
 
 ### Fixed

@@ -57,6 +57,7 @@
     /* auth */                                                                                                        \
     X(void, Discord_Client_Authorize, (Discord_Client*, Discord_AuthorizationArgs*, Discord_Client_AuthorizationCallback, Discord_FreeFn, void*)) \
     X(void, Discord_Client_CreateAuthorizationCodeVerifier, (Discord_Client*, Discord_AuthorizationCodeVerifier*))      \
+    X(void, Discord_Client_AbortAuthorize, (Discord_Client*))                                                         \
     X(void, Discord_Client_GetToken, (Discord_Client*, uint64_t, Discord_String, Discord_String, Discord_String, Discord_Client_TokenExchangeCallback, Discord_FreeFn, void*)) \
     X(void, Discord_Client_RefreshToken, (Discord_Client*, uint64_t, Discord_String, Discord_Client_TokenExchangeCallback, Discord_FreeFn, void*)) \
     X(void, Discord_Client_RevokeToken, (Discord_Client*, uint64_t, Discord_String, Discord_Client_RevokeTokenCallback, Discord_FreeFn, void*)) \
@@ -70,6 +71,7 @@
     X(void, Discord_AuthorizationArgs_SetCodeChallenge, (Discord_AuthorizationArgs*, Discord_AuthorizationCodeChallenge*)) \
     X(void, Discord_AuthorizationCodeChallenge_Init, (Discord_AuthorizationCodeChallenge*))                           \
     X(void, Discord_AuthorizationCodeChallenge_Drop, (Discord_AuthorizationCodeChallenge*))                           \
+    X(void, Discord_AuthorizationCodeChallenge_Challenge, (Discord_AuthorizationCodeChallenge*, Discord_String*))      \
     X(void, Discord_AuthorizationCodeVerifier_Drop, (Discord_AuthorizationCodeVerifier*))                             \
     X(void, Discord_AuthorizationCodeVerifier_Challenge, (Discord_AuthorizationCodeVerifier*, Discord_AuthorizationCodeChallenge*)) \
     X(void, Discord_AuthorizationCodeVerifier_SetVerifier, (Discord_AuthorizationCodeVerifier*, Discord_String))       \
