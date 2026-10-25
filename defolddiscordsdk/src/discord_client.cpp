@@ -446,7 +446,9 @@ void ReadUserSnap(const DiscordSocialCapi& capi, Discord_UserHandle* handle,
     Discord_Activity activity;
     memset(&activity, 0, sizeof(activity));
     out->m_HasGameActivity = capi.Discord_UserHandle_GameActivity(handle, &activity);
-    capi.Discord_Activity_Drop(&activity);
+    if (out->m_HasGameActivity) {
+        capi.Discord_Activity_Drop(&activity);
+    }
 }
 
 void ReadActivitySummary(const DiscordSocialCapi& capi, Discord_Activity* activity,

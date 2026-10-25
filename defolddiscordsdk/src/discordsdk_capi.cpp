@@ -68,7 +68,13 @@ std::string DiscordSocialCapi_ReadGetter(const DiscordSocialCapi& capi, Discord_
     if (!s) {
         return std::string();
     }
-    return DiscordSocialCapi_ReadString(capi, *s);
+    std::string out = DiscordSocialCapi_ReadString(capi, *s);
+    // Optional getters (Avatar, GlobalName, ...) return false and leave the
+    // output untouched; call sites reuse one Discord_String, so a stale pointer
+    // here would be freed twice.
+    s->ptr = 0;
+    s->size = 0;
+    return out;
 }
 
 void DiscordSocialCapi_ReadProperties(const DiscordSocialCapi& capi, const Discord_Properties& props,

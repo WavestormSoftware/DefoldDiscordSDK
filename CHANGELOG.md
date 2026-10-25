@@ -3,6 +3,17 @@
 All notable changes to DefoldDiscordSDK are documented here. The format is
 based on Keep a Changelog and the project uses semantic versioning.
 
+## [1.0.8] - 2026-10-25
+
+### Fixed
+
+- Double free (`free(): double free detected`) as soon as a linked client
+  listed friends or read a user without an avatar. Optional getters such as
+  `Discord_UserHandle_Avatar` return false and leave their output untouched,
+  and the reused `Discord_String` still pointed at the previous, already freed
+  value. The getter helper now clears the string after every read, and a user's
+  game activity is only dropped when one was returned.
+
 ## [1.0.7] - 2026-10-25
 
 ### Fixed
