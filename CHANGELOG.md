@@ -3,6 +3,15 @@
 All notable changes to DefoldDiscordSDK are documented here. The format is
 based on Keep a Changelog and the project uses semantic versioning.
 
+## [1.0.9] - 2026-10-25
+
+### Fixed
+
+- Engine panic (`unprotected error in call to Lua API (attempt to index a
+  function value)`) shortly after a linked client connected. The
+  `relationship_*` event payload popped its own table off the stack, so the
+  next field was written into the Lua callback. The stray push/pop pair is gone.
+
 ## [1.0.8] - 2026-10-25
 
 ### Fixed

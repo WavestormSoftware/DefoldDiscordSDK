@@ -807,8 +807,6 @@ void HandleRelationshipEvent(int event_kind, uint64_t user_id, bool is_discord_u
         {
             RelationshipContext* ctx = (RelationshipContext*)context;
             lua_newtable(L);
-            PushFieldId(L, "user_id", 0); // id text arrives via ctx below
-            lua_pop(L, 1);                // replaced directly for clarity
             lua_pushstring(L, ctx->m_UserId.c_str());
             lua_setfield(L, -2, "user_id");
             lua_pushboolean(L, ctx->m_IsDiscordUpdate ? 1 : 0);
