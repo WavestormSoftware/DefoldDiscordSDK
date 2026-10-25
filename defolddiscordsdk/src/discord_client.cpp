@@ -1943,7 +1943,7 @@ void DiscordSocialClient_OnTokenExchange(Discord_ClientResult* result, Discord_S
     Discord_String token_arg;
     token_arg.ptr = (uint8_t*)access.data();
     token_arg.size = access.size();
-    capi.Discord_Client_UpdateToken(&g_State.m_Client, Discord_AuthorizationTokenType_User, token_arg,
+    capi.Discord_Client_UpdateToken(&g_State.m_Client, Discord_AuthorizationTokenType_Bearer, token_arg,
                                     &DiscordSocialClient_OnUpdateToken, &DiscordSocialClient_FreeCallbackData, 0);
 }
 
@@ -1979,7 +1979,7 @@ bool SetToken(const char* access, const char* refresh)
     Discord_String token_arg;
     token_arg.ptr = (uint8_t*)access_text.data();
     token_arg.size = access_text.size();
-    capi.Discord_Client_UpdateToken(&g_State.m_Client, Discord_AuthorizationTokenType_User, token_arg,
+    capi.Discord_Client_UpdateToken(&g_State.m_Client, Discord_AuthorizationTokenType_Bearer, token_arg,
                                     &DiscordSocialClient_OnUpdateToken, &DiscordSocialClient_FreeCallbackData, 0);
     return true;
 }

@@ -3,6 +3,16 @@
 All notable changes to DefoldDiscordSDK are documented here. The format is
 based on Keep a Changelog and the project uses semantic versioning.
 
+## [1.0.7] - 2026-10-25
+
+### Fixed
+
+- Linked accounts never reached `ready`: OAuth access tokens were handed to
+  `UpdateToken` as `AuthorizationTokenType_User`, so the gateway closed the
+  connection (4004, `UnexpectedClose`) and friends, lobbies, chat, voice and
+  `get_current_user` stayed empty. `set_token` and the token exchange now
+  pass `AuthorizationTokenType_Bearer`, as the Social SDK expects.
+
 ## [1.0.6] - 2026-10-25
 
 ### Fixed
