@@ -36,12 +36,16 @@ typedef SOCKET LoopbackSocket;
 #include <arpa/inet.h>
 #include <fcntl.h>
 #include <netinet/in.h>
-#include <spawn.h>
 #include <sys/socket.h>
 #include <sys/time.h>
-#include <sys/wait.h>
 #include <unistd.h>
+#if defined(DM_PLATFORM_LINUX) || defined(DM_PLATFORM_OSX)
+// Desktop only: the Android NDK has no posix_spawn and iOS forbids it.
+#define LOOPBACK_CAN_SPAWN 1
+#include <spawn.h>
+#include <sys/wait.h>
 extern char** environ;
+#endif
 typedef int LoopbackSocket;
 #define LOOPBACK_INVALID (-1)
 #define LoopbackClose close
@@ -1599,7 +1603,7 @@ static bool QueryParam(const std::string& query, const char* key, std::string* o
     return false;
 }
 
-#if !defined(_WIN32)
+#if defined(LOOPBACK_CAN_SPAWN)
 static pid_t g_OpenerPid = 0;
 #endif
 
@@ -1607,6 +1611,9 @@ static bool OpenBrowser(const std::string& url)
 {
 #if defined(_WIN32)
     return (INT_PTR)ShellExecuteA(NULL, "open", url.c_str(), NULL, NULL, SW_SHOWNORMAL) > 32;
+#elif !defined(LOOPBACK_CAN_SPAWN)
+    (void)url;
+    return false; // mobile/web: use the SDK flow (authorize() without options)
 #else
 #if defined(__APPLE__)
     const char* opener = "open";
@@ -1752,7 +1759,7 @@ bool AuthorizeInBrowser()
 
 void PumpBrowserAuth()
 {
-#if !defined(_WIN32)
+#if defined(LOOPBACK_CAN_SPAWN)
     if (g_OpenerPid > 0 && waitpid(g_OpenerPid, 0, WNOHANG) != 0) {
         g_OpenerPid = 0;
     }

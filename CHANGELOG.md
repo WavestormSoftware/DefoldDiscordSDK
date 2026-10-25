@@ -3,6 +3,15 @@
 All notable changes to DefoldDiscordSDK are documented here. The format is
 based on Keep a Changelog and the project uses semantic versioning.
 
+## [1.0.6] - 2026-10-25
+
+### Fixed
+
+- 1.0.5 failed to compile for Android (`posix_spawnp` is not in the NDK).
+  The browser opener is now desktop only (Windows, Linux, macOS); on
+  other platforms `authorize({ browser = true })` reports an `error` and
+  `authorize()` without options keeps working.
+
 ## [1.0.5] - 2026-10-25
 
 ### Added
